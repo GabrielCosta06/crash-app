@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../data/app_repository.dart';
 import '../models/crashpad.dart';
 import '../theme/app_theme.dart';
 
+/// Landing page showcasing featured crashpads and quick filters.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.onUpdateIndex});
 
@@ -20,6 +22,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   final List<String> _bedTypes = ['All', 'Hot Bed', 'Cold Bed', 'Both'];
   String _selectedBedType = 'All';
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
   bool _isInitialized = false;
   bool _isLoading = true;
   List<Crashpad> _crashpads = const [];
@@ -56,10 +60,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   List<Crashpad> get _filteredCrashpads {
-    if (_selectedBedType == 'All') return _crashpads;
-    return _crashpads
-        .where((crashpad) => crashpad.bedType == _selectedBedType)
-        .toList();
+    final query = _searchQuery.trim().toLowerCase();
+    return _crashpads.where((crashpad) {
+      final matchesBed =
+          _selectedBedType == 'All' || crashpad.bedType == _selectedBedType;
+      if (!matchesBed) return false;
+      if (query.isEmpty) return true;
+      final fields = [
+        crashpad.name,
+        crashpad.location,
+        crashpad.description,
+        crashpad.nearestAirport,
+      ];
+      return fields.any((field) => field.toLowerCase().contains(query));
+    }).toList();
   }
 
   void _onBedTypeSelected(String type) {
@@ -67,7 +81,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _kickListAnimation();
   }
 
-  void _navigateToOwnerTab() => widget.onUpdateIndex?.call(2);
+  void _onSearchChanged(String value) {
+    setState(() => _searchQuery = value);
+    _kickListAnimation();
+  }
 
   void _kickListAnimation() {
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ??
@@ -81,6 +98,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    _searchController.dispose();
     if (_isInitialized) {
       _listController.dispose();
     }
@@ -100,19 +118,26 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             pinned: true,
             expandedHeight: 220,
             flexibleSpace: FlexibleSpaceBar(
-              background: _HeroBanner(
-                onListTapped: _navigateToOwnerTab,
-                onExploreTapped: () => widget.onUpdateIndex?.call(1),
-              ),
+              background: const _HeroBanner(),
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             sliver: SliverToBoxAdapter(
-              child: _FilterChips(
-                bedTypes: _bedTypes,
-                current: _selectedBedType,
-                onSelected: _onBedTypeSelected,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SearchBar(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                  ),
+                  const SizedBox(height: 16),
+                  _FilterChips(
+                    bedTypes: _bedTypes,
+                    current: _selectedBedType,
+                    onSelected: _onBedTypeSelected,
+                  ),
+                ],
               ),
             ),
           ),
@@ -175,168 +200,205 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 }
 
-class _HeroBanner extends StatelessWidget {
-  const _HeroBanner({
-    required this.onListTapped,
-    required this.onExploreTapped,
-  });
+class _HeroBanner extends StatefulWidget {
+  const _HeroBanner();
 
-  final VoidCallback onListTapped;
-  final VoidCallback onExploreTapped;
+  @override
+  State<_HeroBanner> createState() => _HeroBannerState();
+}
+
+class _HeroBannerState extends State<_HeroBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final repository = context.watch<AppRepository>();
     final user = repository.currentUser;
-
     final isLight = theme.brightness == Brightness.light;
-  final bgGradient = isLight
-    ? [AppPalette.lightPrimary.withValues(alpha: 0.08), AppPalette.lightSurface]
-        : [const Color(0xFF1B223F), const Color(0xFF141A2C)];
-    final cardColor = isLight ? AppPalette.lightSurface : Colors.white.withValues(alpha: 0.08);
+
     final textColor = isLight ? AppPalette.lightText : Colors.white;
-    final subTextColor = isLight ? AppPalette.lightTextSecondary : AppPalette.softSlate;
-  // Removed unused borderColor
-    return Material(
-      elevation: 6,
-      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: bgGradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
-        ),
-        padding: const EdgeInsets.fromLTRB(24, kToolbarHeight + 18, 24, 28),
-        child: SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.0, end: 1.0),
-            duration: const Duration(milliseconds: 420),
-            curve: Curves.easeOut,
-            builder: (context, t, child) => Opacity(
-              opacity: t,
-              child: Transform.translate(
-                offset: Offset(0, (1 - t) * 14),
-                child: child!,
-              ),
-            ),
-            child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: isLight ? AppPalette.lightPrimary.withValues(alpha: 0.12) : AppPalette.neonPulse.withValues(alpha: 0.15),
-                  child: const Icon(Icons.bed_outlined, color: AppPalette.neonPulse, size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    user != null
-                        ? 'Welcome back, ${user.firstName}!'
-                        : 'Welcome to Crashpads',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: textColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(30),
-                    color: cardColor,
-                  ),
-                  child: Text(
-                    'v2.0',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: AppPalette.neonPulse,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Find your next restful layover or list your crew housing for others.',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: subTextColor,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Container(
-              decoration: BoxDecoration(
-                color: isLight ? AppPalette.lightPrimary.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-              child: Row(
-                children: [
-                  const Icon(Icons.search, color: AppPalette.neonPulse, size: 22),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Search locations, amenities, etc.',
-                        border: InputBorder.none,
-                        hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                          color: subTextColor.withValues(alpha: 0.7),
-                        ),
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-                      cursorColor: AppPalette.neonPulse,
-                      enabled: false, // For now, just for UI
-                    ),
-                  ),
+    final subTextColor =
+        isLight ? AppPalette.lightTextSecondary : AppPalette.softSlate;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = Curves.easeInOut.transform(_controller.value);
+        final gradient = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.lerp(
+            Alignment.centerRight,
+            Alignment.bottomLeft,
+            progress,
+          )!,
+          colors: isLight
+              ? [
+                  Color.lerp(AppPalette.lightPrimary.withValues(alpha: 0.12),
+                      AppPalette.neonPulse.withValues(alpha: 0.10), progress)!,
+                  Color.lerp(AppPalette.lightSurface, Colors.white, progress)!,
+                ]
+              : [
+                  Color.lerp(const Color(0xFF1B223F),
+                      const Color(0xFF12162D), progress)!,
+                  Color.lerp(const Color(0xFF141A2C),
+                      AppPalette.neonPulse.withValues(alpha: 0.14), progress)!,
                 ],
+        );
+        final elevation = 6 + progress * 6;
+        final badgeColor = Color.lerp(
+          isLight
+              ? AppPalette.lightSurface
+              : Colors.white.withValues(alpha: 0.08),
+          AppPalette.neonPulse.withValues(alpha: isLight ? 0.18 : 0.26),
+          progress * 0.7,
+        );
+        final avatarScale = 1 + 0.025 * math.sin(progress * math.pi * 2);
+        final taglineOpacity = 0.82 + (progress * 0.18);
+
+        return Material(
+          elevation: elevation,
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: gradient,
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(32)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, kToolbarHeight + 18, 24, 28),
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 420),
+                curve: Curves.easeOut,
+                builder: (context, t, child) => Opacity(
+                  opacity: t,
+                  child: Transform.translate(
+                    offset: Offset(0, (1 - t) * 14),
+                    child: child!,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Transform.scale(
+                          scale: avatarScale,
+                          child: CircleAvatar(
+                            radius: 22,
+                            backgroundColor: isLight
+                                ? AppPalette.lightPrimary
+                                    .withValues(alpha: 0.12 + progress * 0.12)
+                                : AppPalette.neonPulse
+                                    .withValues(alpha: 0.15 + progress * 0.10),
+                            child: const Icon(Icons.bed_outlined,
+                                color: AppPalette.neonPulse, size: 28),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 350),
+                            switchInCurve: Curves.easeOut,
+                            switchOutCurve: Curves.easeIn,
+                            child: Text(
+                              user != null
+                                  ? 'Welcome back, ${user.firstName}!'
+                                  : 'Welcome to Crashpads',
+                              key: ValueKey<bool>(user != null),
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: textColor,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 420),
+                          curve: Curves.easeOut,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(30),
+                            color: badgeColor,
+                          ),
+                          child: Text(
+                            'v2.0',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: AppPalette.neonPulse,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 480),
+                      opacity: taglineOpacity,
+                      curve: Curves.easeInOut,
+                      child: Text(
+                        'Find your next restful layover or list your crew housing for others.',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: subTextColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: onListTapped,
-                    icon: const Icon(Icons.add_box_outlined),
-                    label: const Text('List my crashpad'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      textStyle: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onExploreTapped,
-                    icon: const Icon(Icons.explore_outlined, color: AppPalette.neonPulse),
-                    label: const Text('Explore networks'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppPalette.neonPulse,
-                      side: const BorderSide(color: AppPalette.neonPulse, width: 1.2),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      textStyle: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ), // Column via TweenAnimationBuilder
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  const _SearchBar({
+    required this.controller,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return TextField(
+      controller: controller,
+      decoration: const InputDecoration(
+        labelText: 'Search by name or location',
+        prefixIcon: Icon(Icons.search),
       ),
-      ), // SingleChildScrollView
-    ), // Container
-  ); // Material
+      style: theme.textTheme.bodyLarge,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+    );
   }
 }
 
@@ -353,9 +415,12 @@ class _FilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 8,
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
         children: bedTypes
             .map((bedType) {
               final selected = current == bedType;
@@ -371,6 +436,7 @@ class _FilterChips extends StatelessWidget {
               );
             })
           .toList(),
+      ),
     );
   }
 }

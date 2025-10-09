@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../data/app_repository.dart';
 import '../theme/app_theme.dart';
 
+/// Profile surface where crew can manage preferences and avatar.
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
 
@@ -69,6 +70,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('My profile'),
         actions: [
           IconButton(
@@ -134,7 +136,11 @@ class _AccountScreenState extends State<AccountScreen> {
                                     width: 14,
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
-                                : Icon(Icons.edit, size: 14, color: Theme.of(context).brightness == Brightness.light ? AppPalette.lightText : Colors.black),
+                                : Icon(
+                                    Icons.edit,
+                                    size: 14,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
                           ),
                         ),
                       ),
@@ -347,7 +353,10 @@ class _SignedOutView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My profile')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('My profile'),
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

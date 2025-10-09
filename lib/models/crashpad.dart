@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+/// Domain model describing a crashpad listing.
 class Crashpad {
   final String id;
   final String name;
@@ -27,6 +28,7 @@ class Crashpad {
     required this.clickCount,
   });
 
+  /// Creates a [Crashpad] model from a remote response.
   factory Crashpad.fromJson(Map<String, dynamic> json) {
     // Parse image URLs from JSON array string or list
     List<String> images = [];
@@ -106,6 +108,7 @@ class Crashpad {
   }
 }
 
+/// Represents the owner metadata for a crashpad.
 class Owner {
   final String name;
   final String? contact;

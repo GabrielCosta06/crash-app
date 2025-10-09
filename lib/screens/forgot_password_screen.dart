@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../data/app_repository.dart';
 import '../theme/app_theme.dart';
+import '../widgets/interaction_feedback.dart';
 
+/// Lightweight flow to request a password reset link.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -37,13 +39,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         const SnackBar(content: Text('We couldn\'t find an account for that email.')),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'A secure reset link has been sent to $email. Check your inbox.',
-          ),
-        ),
+      await showActionFeedback(
+        context: context,
+        icon: Icons.mail_lock_outlined,
+        title: 'Reset link sent',
+        message: 'Check your inbox at $email.',
+        color: AppPalette.neonPulse,
       );
+      if (!mounted) return;
       Navigator.pop(context);
     }
 
@@ -56,6 +59,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const AnimatedBackButton(),
         title: const Text('Recover access'),
       ),
       body: Padding(
@@ -111,17 +115,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       },
                     ),
                     const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSubmitting ? null : _sendResetLink,
-                        child: _isSubmitting
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Send reset link'),
+                    TapScale(
+                      enabled: !_isSubmitting,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSubmitting ? null : _sendResetLink,
+                          child: _isSubmitting
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Send reset link'),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),

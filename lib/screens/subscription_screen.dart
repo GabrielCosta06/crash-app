@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../data/app_repository.dart';
 import '../theme/app_theme.dart';
+import '../widgets/interaction_feedback.dart';
 
+/// Premium upsell surface allowing crew members to subscribe.
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
 
@@ -28,9 +30,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     try {
       await repository.subscribeCurrentUser();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Subscription activated. Welcome!')),
+      await showActionFeedback(
+        context: context,
+        icon: Icons.workspace_premium_outlined,
+        title: 'Subscription activated',
+        message: 'Crew Pro access unlocked.',
+        color: AppPalette.neonPulse,
       );
+      if (!mounted) return;
       Navigator.pop(context);
     } on AuthException catch (error) {
       if (!mounted) return;
@@ -53,6 +60,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const AnimatedBackButton(),
         title: const Text('Premium access'),
       ),
       body: Padding(
@@ -96,11 +104,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   const SizedBox(height: 24),
                   _isProcessing
                       ? const CircularProgressIndicator()
-                      : SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _handleSubscribe,
-                            child: const Text('Activate Pro access'),
+                      : TapScale(
+                          enabled: !_isProcessing,
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _handleSubscribe,
+                              child: const Text('Activate Pro access'),
+                            ),
                           ),
                         ),
                   const SizedBox(height: 12),
@@ -118,6 +129,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 }
 
+/// Displays subscription perks with matching iconography.
 class _BenefitList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

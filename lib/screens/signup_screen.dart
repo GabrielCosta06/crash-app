@@ -7,7 +7,9 @@ import 'package:provider/provider.dart';
 import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../theme/app_theme.dart';
+import '../widgets/interaction_feedback.dart';
 
+/// Collects new user details and guides them into the product.
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -70,6 +72,14 @@ class _SignupScreenState extends State<SignupScreen> {
         badgeNumber: _userType == AppUserType.employee
             ? _badgeController.text.trim()
             : null,
+      );
+      if (!mounted) return;
+      await showActionFeedback(
+        context: context,
+        icon: Icons.rocket_launch_outlined,
+        title: 'Account ready',
+        message: 'Welcome to the Crashpad network.',
+        color: AppPalette.neonPulse,
       );
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/home');
@@ -339,17 +349,20 @@ class _SignupScreenState extends State<SignupScreen> {
                                       const SizedBox(height: 24),
                                       SizedBox(
                                         width: double.infinity,
-                                        child: ElevatedButton(
-                                          onPressed: _isLoading ? null : _handleSignup,
-                                          child: _isLoading
-                                              ? const SizedBox(
-                                                  height: 20,
-                                                  width: 20,
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                  ),
-                                                )
-                                              : const Text('Create my Crashpad account'),
+                                        child: TapScale(
+                                          enabled: !_isLoading,
+                                          child: ElevatedButton(
+                                            onPressed: _isLoading ? null : _handleSignup,
+                                            child: _isLoading
+                                                ? const SizedBox(
+                                                    height: 20,
+                                                    width: 20,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  )
+                                                : const Text('Create my Crashpad account'),
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(height: 16),
@@ -392,6 +405,7 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 }
 
+/// Provides a soft radial gradient for the onboarding hero.
 class _SignupBackground extends StatelessWidget {
   const _SignupBackground();
 
@@ -412,12 +426,19 @@ class _SignupBackground extends StatelessWidget {
   }
 }
 
+/// Highlights the product value proposition beside the signup form.
 class _SignupHero extends StatelessWidget {
   const _SignupHero();
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color headlineColor =
+        isDark ? AppPalette.softWhite : AppPalette.midnight;
+    final Color supportingColor =
+        isDark ? Colors.white70 : Colors.black87;
     return Padding(
       padding: const EdgeInsets.only(right: 24),
       child: Column(
@@ -440,26 +461,26 @@ class _SignupHero extends StatelessWidget {
                   'Designed for\ncrew momentum.',
                   style: GoogleFonts.spaceGrotesk(
                     textStyle: textTheme.headlineSmall?.copyWith(
-                      color: Colors.black,
+                      color: headlineColor,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Zero-lag Wi-Fi mesh • Neuroadaptive lighting • Smart sleep pods • Secure biometric entry • Seamless owner analytics',
+                Text(
+                  'Zero-lag Wi-Fi mesh | Neuroadaptive lighting | Smart sleep pods | Secure biometric entry | Seamless owner analytics',
                   style: TextStyle(
-                    color: Colors.black87,
+                    color: supportingColor,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 24),
-          const Row(
+          Row(
             children: [
-              Icon(Icons.bolt_outlined, color: AppPalette.neonPulse),
-              SizedBox(width: 12),
+              const Icon(Icons.bolt_outlined, color: AppPalette.neonPulse),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   'Experience a minimalist tech aesthetic that instills confidence from the first login.',

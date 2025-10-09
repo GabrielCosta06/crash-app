@@ -9,6 +9,8 @@ import '../models/app_user.dart';
 import '../models/crashpad.dart';
 import '../models/review.dart';
 
+/// In-memory data source used to simulate authentication, listings,
+/// reviews and theming state for the demo experience.
 class AppRepository extends ChangeNotifier {
   AppRepository() {
     _seedData();
@@ -27,11 +29,13 @@ class AppRepository extends ChangeNotifier {
 
   List<Crashpad> get crashpads => List.unmodifiable(_crashpads);
 
+  /// Toggles between light and dark themes.
   void toggleTheme() {
     _isDarkTheme = !_isDarkTheme;
     notifyListeners();
   }
 
+  /// Forces the theme to the provided brightness.
   void setTheme(bool isDark) {
     _isDarkTheme = isDark;
     notifyListeners();
@@ -40,6 +44,7 @@ class AppRepository extends ChangeNotifier {
   bool userExists(String email) =>
       _users.any((user) => user.email.toLowerCase() == email.toLowerCase());
 
+  /// Authenticates a user with the provided credentials.
   Future<void> logIn(String email, String password) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     final user = _users.firstWhere(
@@ -54,12 +59,14 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Signs out the active user.
   Future<void> logOut() async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     _currentUser = null;
     notifyListeners();
   }
 
+  /// Registers a new account and authenticates the user on success.
   Future<void> signUp({
     required String email,
     required String password,
@@ -96,11 +103,13 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Returns the list of available crashpads.
   Future<List<Crashpad>> fetchCrashpads() async {
     await Future<void>.delayed(const Duration(milliseconds: 250));
     return List.unmodifiable(_crashpads);
   }
 
+  /// Fetches listings owned by the provided email.
   Future<List<Crashpad>> fetchOwnerCrashpads(String ownerEmail) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     return _crashpads
@@ -110,6 +119,7 @@ class AppRepository extends ChangeNotifier {
         .toList();
   }
 
+  /// Creates a new crashpad owned by the authenticated owner.
   Future<void> addCrashpad({
     required String name,
     required String description,
@@ -141,6 +151,7 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deletes multiple crashpads and their reviews.
   Future<void> deleteCrashpads(Set<String> crashpadIds) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     _crashpads.removeWhere((crashpad) => crashpadIds.contains(crashpad.id));
@@ -150,6 +161,7 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Records a click on the provided crashpad identifier.
   Future<void> incrementClickCount(String crashpadId) async {
     final index =
         _crashpads.indexWhere((crashpad) => crashpad.id == crashpadId);
@@ -160,11 +172,13 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Retrieves reviews for the given crashpad.
   Future<List<Review>> fetchReviews(String crashpadId) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     return List.unmodifiable(_reviewsByCrashpad[crashpadId] ?? []);
   }
 
+  /// Persists a new review for the supplied crashpad.
   Future<void> addReview({
     required String crashpadId,
     required String employeeName,
@@ -182,6 +196,7 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Marks the active user as subscribed to premium features.
   Future<void> subscribeCurrentUser() async {
     final current = _currentUser;
     if (current == null) {
@@ -198,6 +213,7 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Updates the avatar for the authenticated user.
   Future<void> updateProfileAvatar(String base64Image) async {
     final current = _currentUser;
     if (current == null) return;

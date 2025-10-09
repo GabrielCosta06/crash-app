@@ -1,3 +1,4 @@
+/// Lightweight model that captures a crew member review for a crashpad.
 class Review {
   final String employeeName;
   final String comment;

@@ -9,7 +9,9 @@ import '../models/app_user.dart';
 import '../models/crashpad.dart';
 import '../models/review.dart';
 import '../theme/app_theme.dart';
+import '../widgets/interaction_feedback.dart';
 
+/// Detailed presentation of a crashpad with gallery, metrics and reviews.
 class OwnerDetailsScreen extends StatefulWidget {
   const OwnerDetailsScreen({super.key, required this.crashpad});
 
@@ -78,9 +80,15 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
     setState(() {
       _reviewsFuture = newFuture;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Review submitted.')),
+    await showActionFeedback(
+      context: context,
+      icon: Icons.reviews_outlined,
+      title: 'Thanks for the insight',
+      message: 'Your experience is now helping other crew members.',
+      color: AppPalette.neonPulse,
+      displayDuration: const Duration(milliseconds: 1400),
     );
+    if (!mounted) return;
   }
 
   @override
@@ -92,19 +100,15 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Crashpad overview'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Use pop instead of pushReplacementNamed to go back properly
-            Navigator.of(context).pop();
-          },
-        ),
+        leading: const AnimatedBackButton(),
       ),
       floatingActionButton: isEmployee
-          ? FloatingActionButton.extended(
-              onPressed: _addReview,
-              icon: const Icon(Icons.reviews_outlined),
-              label: const Text('Share experience'),
+          ? TapScale(
+              child: FloatingActionButton.extended(
+                onPressed: _addReview,
+                icon: const Icon(Icons.reviews_outlined),
+                label: const Text('Share experience'),
+              ),
             )
           : null,
       body: SingleChildScrollView(

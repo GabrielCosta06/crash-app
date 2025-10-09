@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:crash_pad/models/crashpad.dart';
 import 'package:crash_pad/screens/owner_details_screen.dart';
+import 'package:crash_pad/theme/app_theme.dart';
 
 class FeaturedListingCard extends StatelessWidget {
   final Crashpad listing;
@@ -22,6 +23,9 @@ class FeaturedListingCard extends StatelessWidget {
     String cityState = parts.length >= 3
         ? "${parts[1].trim()}, ${parts[2].trim()}"
         : listing.location;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color secondaryText =
+        isDark ? AppPalette.softSlate : Colors.grey[600]!;
     return InkWell(
       onTap: () {
         Navigator.push(
@@ -107,7 +111,7 @@ class FeaturedListingCard extends StatelessWidget {
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
-                        ?.copyWith(color: Colors.grey[600]),
+                        ?.copyWith(color: secondaryText),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -115,7 +119,7 @@ class FeaturedListingCard extends StatelessWidget {
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
-                        ?.copyWith(color: Colors.grey[600]),
+                        ?.copyWith(color: secondaryText),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -123,7 +127,7 @@ class FeaturedListingCard extends StatelessWidget {
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
-                        ?.copyWith(color: Colors.grey[600]),
+                        ?.copyWith(color: secondaryText),
                   ),
                 ],
               ),

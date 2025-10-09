@@ -16,11 +16,16 @@ import 'screens/signup_screen.dart';
 import 'screens/subscription_screen.dart';
 import 'theme/app_theme.dart';
 
+/// Shared duration for page swaps within the main navigation shell.
+const Duration _navAnimationDuration = Duration(milliseconds: 260);
+
+/// Entry point for the Crashpad experience.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
+/// Root widget responsible for wiring providers, routing and theming.
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -35,8 +40,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _repository = AppRepository()
-      ..addListener(_handleRepositoryChanged);
+    _repository = AppRepository()..addListener(_handleRepositoryChanged);
     _isAuthenticated = _repository.isAuthenticated;
   }
 
@@ -49,84 +53,70 @@ class _MyAppState extends State<MyApp> {
   void _handleRepositoryChanged() {
     final isLoggedIn = _repository.isAuthenticated;
     if (mounted && isLoggedIn != _isAuthenticated) {
-      setState(() {
-        _isAuthenticated = isLoggedIn;
-      });
+      setState(() => _isAuthenticated = isLoggedIn);
     }
   }
 
+  /// Returns whether unauthenticated users can access the given route.
   bool _isPublicRoute(String? name) =>
       name == '/login' || name == '/signup' || name == '/forgot-password';
 
+  /// Handles route creation while respecting the current auth state.
   Route<dynamic> _generateRoute(RouteSettings settings) {
     final destination = settings.name ?? '/login';
-    final bool allowWithoutAuth = _isPublicRoute(destination);
+    final allowWithoutAuth = _isPublicRoute(destination);
+    final isAuthenticated = _repository.isAuthenticated;
 
-    // Use the repository's authentication state directly for more reliability
-    final isCurrentlyAuthenticated = _repository.isAuthenticated;
-    
-    // Only redirect to login for explicit route navigation, not for back navigation
-    if (!isCurrentlyAuthenticated && !allowWithoutAuth) {
+    if (!isAuthenticated && !allowWithoutAuth) {
       return MaterialPageRoute<void>(
         builder: (context) => LoginScreen(
-          onAuthenticated: () {
-            Navigator.of(context).pushReplacementNamed('/home');
-          },
+          onAuthenticated: () => Navigator.of(context).pushReplacementNamed('/home'),
         ),
+        settings: settings,
       );
     }
 
+    WidgetBuilder builder;
     switch (destination) {
       case '/login':
-        return MaterialPageRoute<void>(
-          builder: (context) => LoginScreen(
-            onAuthenticated: () {
-              Navigator.of(context).pushReplacementNamed('/home');
-            },
-          ),
-        );
+        builder = (context) => LoginScreen(
+              onAuthenticated: () =>
+                  Navigator.of(context).pushReplacementNamed('/home'),
+            );
+        break;
       case '/signup':
-        return MaterialPageRoute<void>(
-          builder: (context) => const SignupScreen(),
-        );
+        builder = (context) => const SignupScreen();
+        break;
       case '/home':
-        return MaterialPageRoute<void>(
-          builder: (context) => const MainScreen(),
-        );
+        builder = (context) => const MainScreen();
+        break;
       case '/owner':
-        return MaterialPageRoute<void>(
-          builder: (context) => const OwnerDashboardScreen(),
-        );
+        builder = (context) => const OwnerDashboardScreen();
+        break;
       case '/create_listing':
-        return MaterialPageRoute<void>(
-          builder: (context) => const CreateListingScreen(),
-        );
+        builder = (context) => const CreateListingScreen();
+        break;
       case '/delete_listings':
-        return MaterialPageRoute<void>(
-          builder: (context) => const DeleteListingsScreen(),
-        );
+        builder = (context) => const DeleteListingsScreen();
+        break;
       case '/forgot-password':
-        return MaterialPageRoute<void>(
-          builder: (context) => const ForgotPasswordScreen(),
-        );
+        builder = (context) => const ForgotPasswordScreen();
+        break;
       case '/owner-details':
         final crashpad = settings.arguments as Crashpad;
-        return MaterialPageRoute<void>(
-          builder: (context) => OwnerDetailsScreen(crashpad: crashpad),
-        );
+        builder = (context) => OwnerDetailsScreen(crashpad: crashpad);
+        break;
       case '/subscribe':
-        return MaterialPageRoute<void>(
-          builder: (context) => const SubscriptionScreen(),
-        );
+        builder = (context) => const SubscriptionScreen();
+        break;
       default:
-        return MaterialPageRoute<void>(
-          builder: (context) => LoginScreen(
-            onAuthenticated: () {
-              Navigator.of(context).pushReplacementNamed('/home');
-            },
-          ),
-        );
+        builder = (context) => LoginScreen(
+              onAuthenticated: () =>
+                  Navigator.of(context).pushReplacementNamed('/home'),
+            );
     }
+
+    return MaterialPageRoute<void>(builder: builder, settings: settings);
   }
 
   @override
@@ -134,20 +124,19 @@ class _MyAppState extends State<MyApp> {
     return ChangeNotifierProvider<AppRepository>.value(
       value: _repository,
       child: Consumer<AppRepository>(
-        builder: (context, repository, child) {
-          return MaterialApp(
-            title: 'Crashpad',
-            debugShowCheckedModeBanner: false,
-            theme: repository.isDarkTheme ? AppTheme.dark : AppTheme.light,
-            initialRoute: _isAuthenticated ? '/home' : '/login',
-            onGenerateRoute: _generateRoute,
-          );
-        },
+        builder: (_, repository, __) => MaterialApp(
+          title: 'Crashpad',
+          debugShowCheckedModeBanner: false,
+          theme: repository.isDarkTheme ? AppTheme.dark : AppTheme.light,
+          initialRoute: _isAuthenticated ? '/home' : '/login',
+          onGenerateRoute: _generateRoute,
+        ),
       ),
     );
   }
 }
 
+/// Hosts the main app destinations behind a minimalist navigation bar.
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -156,6 +145,13 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  static const List<_Destination> _destinations = <_Destination>[
+    _Destination(icon: Icons.dashboard_customize_outlined, label: 'Home'),
+    _Destination(icon: Icons.search_rounded, label: 'Find'),
+    _Destination(icon: Icons.analytics_outlined, label: 'Owner'),
+    _Destination(icon: Icons.person_outline, label: 'Account'),
+  ];
+
   int _currentIndex = 0;
   late final List<Widget> _screens;
 
@@ -170,10 +166,10 @@ class _MainScreenState extends State<MainScreen> {
     ];
   }
 
+  /// Updates the selected destination and triggers the animated swap.
   void _updateIndex(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
+    if (index == _currentIndex) return;
+    setState(() => _currentIndex = index);
   }
 
   void _onNavigationTapped(int index) => _updateIndex(index);
@@ -183,7 +179,19 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       extendBody: true,
       body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
+        duration: _navAnimationDuration,
+        transitionBuilder: (child, animation) {
+          final offsetTween =
+              Tween<Offset>(begin: const Offset(0.05, 0), end: Offset.zero)
+                  .chain(CurveTween(curve: Curves.easeOutCubic));
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: animation.drive(offsetTween),
+              child: child,
+            ),
+          );
+        },
         child: KeyedSubtree(
           key: ValueKey<int>(_currentIndex),
           child: _screens[_currentIndex],
@@ -193,35 +201,88 @@ class _MainScreenState extends State<MainScreen> {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: _onNavigationTapped,
-            type: BottomNavigationBarType.fixed,
-            items: [
-              _animatedItem(Icons.dashboard_customize_outlined, 'Home', 0),
-              _animatedItem(Icons.search_rounded, 'Find', 1),
-              _animatedItem(Icons.analytics_outlined, 'Owner', 2),
-              _animatedItem(Icons.person_outline, 'Account', 3),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth = constraints.maxWidth / _destinations.length;
+              const double horizontalInset = 8;
+              const double verticalInset = 4;
+              final highlightLeft =
+                  itemWidth * _currentIndex + horizontalInset / 2;
+              final double highlightWidth = itemWidth - horizontalInset;
+              final theme = Theme.of(context);
+              final isDark = theme.brightness == Brightness.dark;
+              final highlightColor = isDark
+                  ? theme.colorScheme.secondary.withValues(alpha: 0.18)
+                  : theme.colorScheme.primary.withValues(alpha: 0.12);
+              final backgroundColor = theme.bottomNavigationBarTheme.backgroundColor ??
+                  theme.colorScheme.surface;
+
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(color: backgroundColor),
+                    ),
+                  ),
+                  AnimatedPositioned(
+                    duration: _navAnimationDuration,
+                    curve: Curves.easeOutCubic,
+                    left: highlightLeft,
+                    width: highlightWidth,
+                    top: verticalInset,
+                    bottom: verticalInset,
+                    child: IgnorePointer(
+                      ignoring: true,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: highlightColor,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                    ),
+                  ),
+                  BottomNavigationBar(
+                    currentIndex: _currentIndex,
+                    onTap: _onNavigationTapped,
+                    type: BottomNavigationBarType.fixed,
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    items: List.generate(
+                      _destinations.length,
+                      (index) => _navItem(_destinations[index], index),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  BottomNavigationBarItem _animatedItem(IconData icon, String label, int index) {
-    final selected = index == _currentIndex;
+  /// Builds an animated navigation item that subtly scales when selected.
+  BottomNavigationBarItem _navItem(_Destination destination, int index) {
+    final isSelected = index == _currentIndex;
     return BottomNavigationBarItem(
       icon: AnimatedScale(
-        duration: const Duration(milliseconds: 180),
-        scale: selected ? 1.1 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        scale: isSelected ? 1.08 : 1.0,
         child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 180),
-          opacity: selected ? 1.0 : 0.7,
-          child: Icon(icon),
+          duration: const Duration(milliseconds: 200),
+          opacity: isSelected ? 1.0 : 0.7,
+          child: Icon(destination.icon),
         ),
       ),
-      label: label,
+      label: destination.label,
     );
   }
+}
+
+/// Compact representation of a bottom navigation destination.
+class _Destination {
+  const _Destination({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
 }

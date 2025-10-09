@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../data/app_repository.dart';
 import '../models/crashpad.dart';
 import '../theme/app_theme.dart';
 
+/// Advanced search experience for browsing crashpads.
 class FindScreen extends StatefulWidget {
   const FindScreen({
     super.key,
@@ -30,19 +32,27 @@ class _FindScreenState extends State<FindScreen> {
     'Price: High to Low',
     'Name',
   ];
+  final List<String> _bedTypes = const ['All', 'Hot Bed', 'Cold Bed', 'Both'];
 
   List<Crashpad> _crashpads = const [];
   List<Crashpad> _filteredCrashpads = const [];
 
   String _selectedSort = 'Newest';
-  String? _selectedBedType;
+  String _selectedBedType = 'All';
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _searchController.text = widget.initialSearchQuery ?? '';
-    _selectedBedType = widget.initialBedType;
+    final initialBedType = widget.initialBedType;
+    if (initialBedType != null) {
+      if (initialBedType.toLowerCase() == 'all beds') {
+        _selectedBedType = 'All';
+      } else if (_bedTypes.contains(initialBedType)) {
+        _selectedBedType = initialBedType;
+      }
+    }
   }
 
   @override
@@ -78,7 +88,7 @@ class _FindScreenState extends State<FindScreen> {
       final matchesQuery = crashpad.name.toLowerCase().contains(query) ||
           crashpad.location.toLowerCase().contains(query);
       final matchesBed =
-          bedType == null || bedType.isEmpty || crashpad.bedType == bedType;
+          bedType == 'All' || crashpad.bedType == bedType;
       return matchesQuery && matchesBed;
     }).toList();
 
@@ -116,6 +126,7 @@ class _FindScreenState extends State<FindScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Discover Crashpads'),
         actions: [
           PopupMenuButton<String>(
@@ -153,31 +164,31 @@ class _FindScreenState extends State<FindScreen> {
                       onChanged: (_) => _applyFilters(),
                     ),
                   ),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                  Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        _buildFilterChip('All beds', _selectedBedType == null,
-                            () {
-                          setState(() => _selectedBedType = null);
-                          _applyFilters();
-                        }),
-                        const SizedBox(width: 8),
-                        ...['Hot Bed', 'Cold Bed', 'Both'].map(
-                          (bedType) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: _buildFilterChip(
-                              bedType,
-                              _selectedBedType == bedType,
-                              () {
+                    child: AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeInOut,
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: _bedTypes.map((bedType) {
+                          final selected = _selectedBedType == bedType;
+                          return AnimatedScale(
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOut,
+                            scale: selected ? 1.0 : 0.96,
+                            child: ChoiceChip(
+                              label: Text(bedType),
+                              selected: selected,
+                              onSelected: (_) {
                                 setState(() => _selectedBedType = bedType);
                                 _applyFilters();
                               },
                             ),
-                          ),
-                        ),
-                      ],
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -190,20 +201,44 @@ class _FindScreenState extends State<FindScreen> {
                             itemCount: _filteredCrashpads.length,
                             itemBuilder: (context, index) {
                               final crashpad = _filteredCrashpads[index];
-                              return _FindResultCard(
-                                crashpad: crashpad,
-                                onTap: () {
-                                  final isSubscribed = user?.isSubscribed ?? false;
-                                  if (user == null || !isSubscribed) {
-                                    _promptSubscription(context);
-                                  } else {
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/owner-details',
-                                      arguments: crashpad,
-                                    );
-                                  }
+                              final animationDuration = Duration(
+                                milliseconds:
+                                    320 + math.min(index * 40, 240),
+                              );
+                              return TweenAnimationBuilder<double>(
+                                key: ValueKey(crashpad.id),
+                                tween: Tween(begin: 0.0, end: 1.0),
+                                duration: animationDuration,
+                                curve: Curves.easeOutCubic,
+                                builder: (context, value, child) {
+                                  final slideOffset = (1 - value) * 24;
+                                  return Opacity(
+                                    opacity: value,
+                                    child: Transform.translate(
+                                      offset: Offset(0, slideOffset),
+                                      child: Transform.scale(
+                                        scale: 0.95 + (0.05 * value),
+                                        child: child,
+                                      ),
+                                    ),
+                                  );
                                 },
+                                child: _FindResultCard(
+                                  crashpad: crashpad,
+                                  onTap: () {
+                                    final isSubscribed =
+                                        user?.isSubscribed ?? false;
+                                    if (user == null || !isSubscribed) {
+                                      _promptSubscription(context);
+                                    } else {
+                                      Navigator.pushNamed(
+                                        context,
+                                        '/owner-details',
+                                        arguments: crashpad,
+                                      );
+                                    }
+                                  },
+                                ),
                               );
                             },
                             separatorBuilder: (_, __) => const SizedBox(height: 16),
@@ -212,14 +247,6 @@ class _FindScreenState extends State<FindScreen> {
                 ],
               ),
       ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
     );
   }
 

@@ -7,7 +7,9 @@ import 'package:provider/provider.dart';
 import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../theme/app_theme.dart';
+import '../widgets/interaction_feedback.dart';
 
+/// Allows owners to publish a new crashpad with imagery and pricing.
 class CreateListingScreen extends StatefulWidget {
   const CreateListingScreen({super.key});
 
@@ -93,9 +95,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         imageUrls: _base64Images.isEmpty ? _placeholderImages : _base64Images,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Crashpad created successfully.')),
+      await showActionFeedback(
+        context: context,
+        icon: Icons.check_circle_outline,
+        title: 'Crashpad published',
+        message: 'Your sanctuary is ready for the crew.',
+        color: AppPalette.neonPulse,
       );
+      if (!mounted) return;
       Navigator.pop(context);
     } catch (error) {
       if (!mounted) return;
@@ -113,6 +120,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const AnimatedBackButton(),
         title: const Text('New crashpad'),
       ),
       body: Form(
@@ -290,17 +298,20 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Publish crashpad'),
+              TapScale(
+                enabled: !_isSubmitting,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isSubmitting ? null : _submit,
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Publish crashpad'),
+                  ),
                 ),
               ),
             ],
@@ -311,6 +322,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 }
 
+/// Reusable container with consistent padding and rounding.
 class _SectionCard extends StatelessWidget {
   const _SectionCard({required this.title, required this.child});
 

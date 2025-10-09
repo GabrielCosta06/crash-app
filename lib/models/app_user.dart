@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+/// Supported user roles within the demo app.
 enum AppUserType { owner, employee }
 
+/// Represents an authenticated user profile stored in memory.
 class AppUser {
   AppUser({
     required this.id,
@@ -31,8 +33,13 @@ class AppUser {
   final String? avatarBase64;
   bool isSubscribed;
 
+  /// Returns the display name used throughout the UI.
   String get displayName => '$firstName $lastName';
+
+  /// Indicates whether the user can manage crashpads.
   bool get isOwner => userType == AppUserType.owner;
+
+  /// Indicates whether the user can review crashpads.
   bool get isEmployee => userType == AppUserType.employee;
 
   String get initials =>

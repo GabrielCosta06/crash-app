@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 
 import '../data/app_repository.dart';
 import '../theme/app_theme.dart';
+import '../widgets/interaction_feedback.dart';
 
+/// Authentication entry point featuring animated feedback and polished UI.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.onAuthenticated});
 
@@ -41,6 +43,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await repository.logIn(email, password);
+      if (!mounted) return;
+      await showActionFeedback(
+        context: context,
+        icon: Icons.flight_takeoff_outlined,
+        title: 'Ready for takeoff',
+        message: 'You are now signed in.',
+        color: AppPalette.neonPulse,
+      );
       if (!mounted) return;
       widget.onAuthenticated?.call();
       if (widget.onAuthenticated == null) {
@@ -178,17 +188,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                   const SizedBox(height: 8),
                                   SizedBox(
                                     width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: _isLoading ? null : _handleLogin,
-                                      child: _isLoading
-                                          ? const SizedBox(
-                                              height: 20,
-                                              width: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : const Text('Sign in securely'),
+                                    child: TapScale(
+                                      enabled: !_isLoading,
+                                      child: ElevatedButton(
+                                        onPressed: _isLoading ? null : _handleLogin,
+                                        child: _isLoading
+                                            ? const SizedBox(
+                                                height: 20,
+                                                width: 20,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                ),
+                                              )
+                                            : const Text('Sign in securely'),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 16),
@@ -233,6 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+/// Presents a welcoming header with contextual copy.
 class _LoginHeader extends StatelessWidget {
   const _LoginHeader({required this.isLoading});
 
@@ -265,7 +279,7 @@ class _LoginHeader extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Text(
-          isLoading ? 'Authenticating...' : 'Welcome back 👋',
+          isLoading ? 'Authenticating...' : 'Welcome back',
           style: GoogleFonts.spaceGrotesk(
             textStyle: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
@@ -285,6 +299,7 @@ class _LoginHeader extends StatelessWidget {
   }
 }
 
+/// Draws a subtle futuristic grid backdrop.
 class _BackgroundGrid extends StatelessWidget {
   const _BackgroundGrid({required this.size});
 

@@ -6,7 +6,9 @@ import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../models/crashpad.dart';
 import '../theme/app_theme.dart';
+import '../widgets/interaction_feedback.dart';
 
+/// Rich analytics view giving owners quick access to their inventory.
 class OwnerDashboardScreen extends StatefulWidget {
   const OwnerDashboardScreen({super.key});
 
@@ -87,6 +89,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Owner command center'),
         actions: [
           IconButton(
@@ -430,10 +433,12 @@ class _QuickActions extends StatelessWidget {
           .map(
             (button) => SizedBox(
               width: 220,
-              child: ElevatedButton.icon(
-                onPressed: button.onTap,
-                icon: Icon(button.icon),
-                label: Text(button.label),
+              child: TapScale(
+                child: ElevatedButton.icon(
+                  onPressed: button.onTap,
+                  icon: Icon(button.icon),
+                  label: Text(button.label),
+                ),
               ),
             ),
           )
@@ -460,7 +465,10 @@ class _OwnerOnlyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Owner command center')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Owner command center'),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),

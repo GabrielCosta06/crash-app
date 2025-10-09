@@ -5,7 +5,9 @@ import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../models/crashpad.dart';
 import '../theme/app_theme.dart';
+import '../widgets/interaction_feedback.dart';
 
+/// Lets owners prune outdated crashpad listings in bulk.
 class DeleteListingsScreen extends StatefulWidget {
   const DeleteListingsScreen({super.key});
 
@@ -92,6 +94,7 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const AnimatedBackButton(),
         title: const Text('Manage listings'),
       ),
       body: _isLoading
@@ -129,19 +132,28 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: OutlinedButton(
-                              onPressed: _selectedIds.isEmpty ? null : () => setState(() => _selectedIds.clear()),
-                              child: const Text('Clear selection'),
+                            child: TapScale(
+                              enabled: _selectedIds.isNotEmpty,
+                              child: OutlinedButton(
+                                onPressed: _selectedIds.isEmpty
+                                    ? null
+                                    : () => setState(() => _selectedIds.clear()),
+                                child: const Text('Clear selection'),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: ElevatedButton(
-                              onPressed: _selectedIds.isEmpty ? null : _deleteSelected,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppPalette.danger,
+                            child: TapScale(
+                              enabled: _selectedIds.isNotEmpty,
+                              child: ElevatedButton(
+                                onPressed:
+                                    _selectedIds.isEmpty ? null : _deleteSelected,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppPalette.danger,
+                                ),
+                                child: Text('Delete ${_selectedIds.length}'),
                               ),
-                              child: Text('Delete ${_selectedIds.length}'),
                             ),
                           ),
                         ],
@@ -153,6 +165,7 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
   }
 }
 
+/// Single row used inside the bulk delete list.
 class _ListingTile extends StatelessWidget {
   const _ListingTile({
     required this.listing,
