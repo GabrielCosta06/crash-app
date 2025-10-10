@@ -7,6 +7,7 @@ import '../models/app_user.dart';
 import '../models/crashpad.dart';
 import '../theme/app_theme.dart';
 import '../widgets/interaction_feedback.dart';
+import '../widgets/page_header.dart';
 
 /// Rich analytics view giving owners quick access to their inventory.
 class OwnerDashboardScreen extends StatefulWidget {
@@ -88,9 +89,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Owner command center'),
+      appBar: PageHeader(
+        title: 'Owner command center',
+        subtitle: 'Track performance, monitor trends, and curate your listings.',
+        icon: Icons.dashboard_customize_outlined,
         actions: [
           IconButton(
             onPressed: _refresh,

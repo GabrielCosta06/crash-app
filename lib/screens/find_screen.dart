@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../data/app_repository.dart';
 import '../models/crashpad.dart';
 import '../theme/app_theme.dart';
+import '../widgets/page_header.dart';
 
 /// Advanced search experience for browsing crashpads.
 class FindScreen extends StatefulWidget {
@@ -125,13 +126,15 @@ class _FindScreenState extends State<FindScreen> {
     final user = repository.currentUser;
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Discover Crashpads'),
+      appBar: PageHeader(
+        title: 'Discover crashpads',
+        subtitle: 'Scout the destinations crew loves most and refine your search.',
+        icon: Icons.travel_explore_outlined,
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.filter_list),
             initialValue: _selectedSort,
+            color: Theme.of(context).cardColor,
             onSelected: (value) {
               setState(() => _selectedSort = value);
               _applyFilters();

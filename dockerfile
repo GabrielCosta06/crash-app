@@ -1,5 +1,5 @@
 # === Stage 1: Build the Flutter web app ===
-FROM ghcr.io/cirruslabs/flutter:3.27.3 AS builder
+FROM ghcr.io/cirruslabs/flutter:stable AS builder
 
 # Set working directory
 WORKDIR /app

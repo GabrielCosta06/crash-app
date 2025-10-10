@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../data/app_repository.dart';
 import '../theme/app_theme.dart';
+import '../widgets/page_header.dart';
 
 /// Profile surface where crew can manage preferences and avatar.
 class AccountScreen extends StatefulWidget {
@@ -69,9 +70,10 @@ class _AccountScreenState extends State<AccountScreen> {
         user.avatarBase64 != null ? base64Decode(user.avatarBase64!) : null;
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('My profile'),
+      appBar: PageHeader(
+        title: 'My profile',
+        subtitle: 'Manage your crew identity, preferences, and theme.',
+        icon: Icons.person_outline,
         actions: [
           IconButton(
             onPressed: () async {
@@ -353,9 +355,10 @@ class _SignedOutView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('My profile'),
+      appBar: const PageHeader(
+        title: 'My profile',
+        subtitle: 'Sign in to personalize your Crashpad experience.',
+        icon: Icons.person_outline,
       ),
       body: Center(
         child: Column(

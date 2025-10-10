@@ -96,6 +96,48 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
   }
 
+  void _handleCrashpadTap(Crashpad crashpad) {
+    final repository = context.read<AppRepository>();
+    final user = repository.currentUser;
+    final isSubscribed = user?.isSubscribed ?? false;
+
+    if (user == null || !isSubscribed) {
+      _promptSubscription();
+      return;
+    }
+
+    Navigator.pushNamed(
+      context,
+      '/owner-details',
+      arguments: crashpad,
+    );
+  }
+
+  void _promptSubscription() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Unlock complete details'),
+        content: const Text(
+          'Subscribe for \$15/month to access owner contact info and advanced analytics.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Maybe later'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.pushNamed(context, '/subscribe');
+            },
+            child: const Text('Subscribe now'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -180,11 +222,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                         child: _CrashpadCard(
                           crashpad: crashpad,
-                          onTap: () => Navigator.pushNamed(
-                            context,
-                            '/owner-details',
-                            arguments: crashpad,
-                          ),
+                          onTap: () => _handleCrashpadTap(crashpad),
                         ),
                       ),
                     );
