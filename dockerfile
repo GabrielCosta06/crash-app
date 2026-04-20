@@ -19,14 +19,51 @@ RUN flutter build web --release
 # === Stage 2: Serve the built app using Nginx ===
 FROM nginx:alpine
 
-# (Optional) Remove the default Nginx static files
-RUN rm -rf /usr/share/nginx/html/*
+# Remove default Nginx config and static files
+RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf
 
 # Copy the compiled Flutter web build from the builder stage
 COPY --from=builder /app/build/web /usr/share/nginx/html
 
-# Expose port 80 to serve the app
+# Create custom Nginx config that listens on 0.0.0.0:8080
+RUN cat > /etc/nginx/conf.d/default.conf <<'EOF'
+server {
+    listen 0.0.0.0:8080;
+    listen [::]:8080;
+    server_name _;
+    
+    root /usr/share/nginx/html;
+    index index.html;
+    
+    # Gzip compression
+    gzip on;
+    gzip_types text/plain text/css text/javascript application/javascript application/json;
+    
+    # Cache control
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    # Route all requests to index.html for Flutter routing
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # Health check endpoint
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+}
+EOF
+
+# Expose port 8080
 EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 CMD nc -z 127.0.0.1 8080 || exit 1
 
 # Start Nginx in the foreground
 CMD ["nginx", "-g", "daemon off;"]
