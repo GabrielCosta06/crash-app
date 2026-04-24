@@ -296,24 +296,36 @@ class _BookingPanelState extends State<_BookingPanel> {
   int _guestCount = AppConfig.defaultGuestCount;
 
   PaymentSummary get _summary {
+    return _paymentService.buildSummary(_draft);
+  }
+
+  BookingDraft get _draft {
+    final repository = context.read<AppRepository>();
+    final guest = repository.currentUser;
     final selected = widget.crashpad.services
         .where((service) => _selectedServices.contains(service.id))
         .map((service) => service.toLineItem())
         .toList();
 
-    return _paymentService.buildSummary(
-      BookingDraft(
-        crashpadId: widget.crashpad.id,
-        guestId: 'mock-guest',
-        nightlyRate: widget.crashpad.price,
-        nights: _nights,
-        guestCount: _guestCount,
-        additionalServices: selected,
-      ),
+    return BookingDraft(
+      crashpadId: widget.crashpad.id,
+      guestId: guest?.id ?? 'guest',
+      nightlyRate: widget.crashpad.price,
+      nights: _nights,
+      guestCount: _guestCount,
+      additionalServices: selected,
     );
   }
 
   Future<void> _showMockPayment() async {
+    final repository = context.read<AppRepository>();
+    final user = repository.currentUser;
+    if (user == null || !user.isEmployee) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in as crew to book this stay.')),
+      );
+      return;
+    }
     final authorized = _paymentService.authorizeMockPayment(_summary);
     await showDialog<void>(
       context: context,
@@ -331,13 +343,19 @@ class _BookingPanelState extends State<_BookingPanel> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(dialogContext);
-              showActionFeedback(
+              await repository.createBooking(
+                crashpad: widget.crashpad,
+                draft: _draft,
+                paymentSummary: _paymentService.captureMockPayment(authorized),
+              );
+              if (!mounted) return;
+              await showActionFeedback(
                 context: context,
                 icon: Icons.check_circle_outline,
-                title: 'Mock payment captured',
-                message: 'This placeholder is ready to be replaced by Stripe.',
+                title: 'Booking confirmed',
+                message: 'The owner can now manage this stay.',
                 color: AppPalette.success,
               );
             },

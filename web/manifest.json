@@ -1,12 +1,12 @@
 {
-    "name": "crash_pad",
-    "short_name": "crash_pad",
+    "name": "Crash App",
+    "short_name": "Crash App",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#050810",
+    "theme_color": "#050810",
+    "description": "Crashpad marketplace and owner operations dashboard for crew housing.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

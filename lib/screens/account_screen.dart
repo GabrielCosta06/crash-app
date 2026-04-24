@@ -5,7 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../data/app_repository.dart';
+import '../models/booking.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_components.dart';
 import '../widgets/page_header.dart';
 
 /// Profile surface where crew can manage preferences and avatar.
@@ -68,6 +70,12 @@ class _AccountScreenState extends State<AccountScreen> {
 
     final avatarBytes =
         user.avatarBase64 != null ? base64Decode(user.avatarBase64!) : null;
+    final guestBookings = repository.bookings
+        .where(
+          (booking) =>
+              booking.guestEmail.toLowerCase() == user.email.toLowerCase(),
+        )
+        .toList();
 
     return Scaffold(
       appBar: PageHeader(
@@ -261,6 +269,10 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
               ],
             ),
+            if (user.isEmployee) ...[
+              const SizedBox(height: 24),
+              _GuestBookingsCard(bookings: guestBookings),
+            ],
           ],
         ),
       ),
@@ -382,6 +394,93 @@ class _SignedOutView extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _GuestBookingsCard extends StatelessWidget {
+  const _GuestBookingsCard({required this.bookings});
+
+  final List<BookingRecord> bookings;
+
+  @override
+  Widget build(BuildContext context) {
+    if (bookings.isEmpty) {
+      return const EmptyStatePanel(
+        icon: Icons.event_busy_outlined,
+        title: 'No stays yet',
+        message: 'Booked crashpads will appear here after mock payment.',
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: AppPalette.deepSpace.withValues(alpha: 0.85),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'My stays',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 16),
+          ...bookings.map(
+            (booking) => Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _GuestBookingTile(booking: booking),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuestBookingTile extends StatelessWidget {
+  const _GuestBookingTile({required this.booking});
+
+  final BookingRecord booking;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: AppPalette.panelElevated.withValues(alpha: 0.7),
+        border: Border.all(color: AppPalette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  booking.crashpadName,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              StatusBadge(label: booking.status.label),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${booking.nights} nights | ${booking.guestCount} guest(s) | Charged \$${booking.paymentSummary.totalChargedToGuest.toStringAsFixed(2)}',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppPalette.textMuted),
+          ),
+        ],
       ),
     );
   }

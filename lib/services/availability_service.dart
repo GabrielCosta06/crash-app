@@ -1,3 +1,4 @@
+import '../models/booking.dart';
 import '../models/crashpad.dart';
 
 class AvailabilitySummary {
@@ -56,7 +57,43 @@ class AvailabilityService {
     );
   }
 
-  bool canBook(Crashpad crashpad, {int guests = 1}) {
-    return summarize(crashpad).availableToBook >= guests;
+  int activeBookingGuests(
+    Crashpad crashpad, {
+    Iterable<BookingRecord> bookings = const <BookingRecord>[],
+  }) {
+    return bookings
+        .where(
+          (booking) =>
+              booking.crashpadId == crashpad.id &&
+              booking.status == BookingStatus.active,
+        )
+        .fold<int>(0, (total, booking) => total + booking.guestCount);
+  }
+
+  int activeGuests(
+    Crashpad crashpad, {
+    Iterable<BookingRecord> bookings = const <BookingRecord>[],
+  }) {
+    return crashpad.totalActiveGuests +
+        activeBookingGuests(crashpad, bookings: bookings);
+  }
+
+  int availableToBook(
+    Crashpad crashpad, {
+    Iterable<BookingRecord> bookings = const <BookingRecord>[],
+  }) {
+    final reservedByActiveStays =
+        activeBookingGuests(crashpad, bookings: bookings);
+    return (summarize(crashpad).availableToBook - reservedByActiveStays)
+        .clamp(0, 999)
+        .toInt();
+  }
+
+  bool canBook(
+    Crashpad crashpad, {
+    int guests = 1,
+    Iterable<BookingRecord> bookings = const <BookingRecord>[],
+  }) {
+    return availableToBook(crashpad, bookings: bookings) >= guests;
   }
 }

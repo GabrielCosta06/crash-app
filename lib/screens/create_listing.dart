@@ -11,6 +11,7 @@ import '../models/booking.dart';
 import '../models/crashpad.dart';
 import '../models/payment.dart';
 import '../services/availability_service.dart';
+import '../services/listing_content_service.dart';
 import '../services/payment_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_components.dart';
@@ -34,12 +35,20 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final TextEditingController _minimumStayController =
       TextEditingController(text: '3');
   final TextEditingController _distanceController = TextEditingController();
-  final TextEditingController _amenitiesController = TextEditingController(
-    text: 'Wi-Fi\nLaundry\nShared kitchen\nSecure entry',
-  );
-  final TextEditingController _rulesController = TextEditingController(
-    text: 'Quiet hours after 10 PM\nClean shared spaces after use',
-  );
+  final TextEditingController _customAmenityController =
+      TextEditingController();
+  final TextEditingController _customRuleController = TextEditingController();
+  final ListingContentService _contentService = const ListingContentService();
+  final Set<String> _selectedAmenities = <String>{
+    'Wi-Fi',
+    'Laundry',
+    'Shared kitchen',
+    'Secure entry',
+  };
+  final Set<String> _selectedRules = <String>{
+    'Quiet hours after 10 PM',
+    'Clean shared spaces after use',
+  };
 
   final List<_RoomDraft> _rooms = <_RoomDraft>[
     _RoomDraft.initial(CrashpadBedModel.hot),
@@ -63,8 +72,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _nearestAirportController.dispose();
     _minimumStayController.dispose();
     _distanceController.dispose();
-    _amenitiesController.dispose();
-    _rulesController.dispose();
+    _customAmenityController.dispose();
+    _customRuleController.dispose();
     for (final room in _rooms) {
       room.dispose();
     }
@@ -149,6 +158,54 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         () => _checkoutCharges.add(_ChargeDraft.initial(ChargeType.custom)));
   }
 
+  void _toggleAmenity(String value, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedAmenities.add(value);
+      } else {
+        _selectedAmenities.remove(value);
+      }
+    });
+  }
+
+  void _toggleRule(String value, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedRules.add(value);
+      } else {
+        _selectedRules.remove(value);
+      }
+    });
+  }
+
+  void _addCustomAmenity() {
+    final messenger = ScaffoldMessenger.of(context);
+    final value = _contentService.normalize(_customAmenityController.text);
+    final error = _contentService.validateCustomAmenity(value);
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    setState(() {
+      _selectedAmenities.add(value);
+      _customAmenityController.clear();
+    });
+  }
+
+  void _addCustomRule() {
+    final messenger = ScaffoldMessenger.of(context);
+    final value = _contentService.normalize(_customRuleController.text);
+    final error = _contentService.validateCustomRule(value);
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    setState(() {
+      _selectedRules.add(value);
+      _customRuleController.clear();
+    });
+  }
+
   void _removeCheckoutCharge(_ChargeDraft charge) {
     setState(() {
       _checkoutCharges.remove(charge);
@@ -177,6 +234,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       );
       return;
     }
+    if (_selectedAmenities.isEmpty || _selectedRules.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select at least one amenity and one house rule.'),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     try {
@@ -189,8 +254,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         price: double.parse(_priceController.text.trim()),
         imageUrls: _base64Images.isEmpty ? _placeholderImages : _base64Images,
         rooms: rooms,
-        amenities: _splitLines(_amenitiesController.text),
-        houseRules: _splitLines(_rulesController.text),
+        amenities: _contentService.normalizeSelection(_selectedAmenities),
+        houseRules: _contentService.normalizeSelection(_selectedRules),
         services: _services
             .where((service) => service.hasMeaningfulData)
             .map((service) => service.toService())
@@ -240,14 +305,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     if (hasHot && hasCold) return CrashpadBedModel.flexible.label;
     if (hasCold) return CrashpadBedModel.cold.label;
     return CrashpadBedModel.hot.label;
-  }
-
-  List<String> _splitLines(String value) {
-    return value
-        .split(RegExp(r'[\n,]'))
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
   }
 
   @override
@@ -302,8 +359,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         ),
                         const SizedBox(height: AppSpacing.xxl),
                         _OperationsSection(
-                          amenitiesController: _amenitiesController,
-                          rulesController: _rulesController,
+                          selectedAmenities: _selectedAmenities,
+                          selectedRules: _selectedRules,
+                          customAmenityController: _customAmenityController,
+                          customRuleController: _customRuleController,
+                          onAmenitySelected: _toggleAmenity,
+                          onRuleSelected: _toggleRule,
+                          onAddCustomAmenity: _addCustomAmenity,
+                          onAddCustomRule: _addCustomRule,
                         ),
                         const SizedBox(height: AppSpacing.xxl),
                         _ServicesAndFeesSection(
@@ -801,12 +864,24 @@ class _RoomCard extends StatelessWidget {
 
 class _OperationsSection extends StatelessWidget {
   const _OperationsSection({
-    required this.amenitiesController,
-    required this.rulesController,
+    required this.selectedAmenities,
+    required this.selectedRules,
+    required this.customAmenityController,
+    required this.customRuleController,
+    required this.onAmenitySelected,
+    required this.onRuleSelected,
+    required this.onAddCustomAmenity,
+    required this.onAddCustomRule,
   });
 
-  final TextEditingController amenitiesController;
-  final TextEditingController rulesController;
+  final Set<String> selectedAmenities;
+  final Set<String> selectedRules;
+  final TextEditingController customAmenityController;
+  final TextEditingController customRuleController;
+  final void Function(String value, bool selected) onAmenitySelected;
+  final void Function(String value, bool selected) onRuleSelected;
+  final VoidCallback onAddCustomAmenity;
+  final VoidCallback onAddCustomRule;
 
   @override
   Widget build(BuildContext context) {
@@ -814,29 +889,26 @@ class _OperationsSection extends StatelessWidget {
       title: 'Amenities and house rules',
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final amenities = TextFormField(
-            controller: amenitiesController,
-            decoration: const InputDecoration(
-              labelText: 'Amenities',
-              hintText: 'One per line or comma separated',
-              alignLabelWithHint: true,
-            ),
-            maxLines: 5,
-            validator: (value) => value == null || value.trim().isEmpty
-                ? 'Add at least one amenity'
-                : null,
+          final amenities = _StructuredPicker(
+            title: 'Amenities',
+            subtitle:
+                'Select known options or add a short validated custom item.',
+            presets: ListingContentService.amenityPresets,
+            selected: selectedAmenities,
+            customController: customAmenityController,
+            customLabel: 'Custom amenity',
+            onSelected: onAmenitySelected,
+            onAddCustom: onAddCustomAmenity,
           );
-          final rules = TextFormField(
-            controller: rulesController,
-            decoration: const InputDecoration(
-              labelText: 'House rules',
-              hintText: 'One per line or comma separated',
-              alignLabelWithHint: true,
-            ),
-            maxLines: 5,
-            validator: (value) => value == null || value.trim().isEmpty
-                ? 'Add at least one house rule'
-                : null,
+          final rules = _StructuredPicker(
+            title: 'House rules',
+            subtitle: 'Use clear rules guests can understand before booking.',
+            presets: ListingContentService.houseRulePresets,
+            selected: selectedRules,
+            customController: customRuleController,
+            customLabel: 'Custom rule',
+            onSelected: onRuleSelected,
+            onAddCustom: onAddCustomRule,
           );
 
           if (constraints.maxWidth < AppBreakpoints.tablet) {
@@ -858,6 +930,102 @@ class _OperationsSection extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _StructuredPicker extends StatelessWidget {
+  const _StructuredPicker({
+    required this.title,
+    required this.subtitle,
+    required this.presets,
+    required this.selected,
+    required this.customController,
+    required this.customLabel,
+    required this.onSelected,
+    required this.onAddCustom,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<String> presets;
+  final Set<String> selected;
+  final TextEditingController customController;
+  final String customLabel;
+  final void Function(String value, bool selected) onSelected;
+  final VoidCallback onAddCustom;
+
+  @override
+  Widget build(BuildContext context) {
+    final customOnly = selected
+        .where(
+          (item) => !presets.any(
+            (preset) => preset.toLowerCase() == item.toLowerCase(),
+          ),
+        )
+        .toList();
+
+    return CrashSurface(
+      radius: AppRadius.lg,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppPalette.textMuted),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: presets.map((item) {
+              return FilterChip(
+                label: Text(item),
+                selected: selected.contains(item),
+                onSelected: (value) => onSelected(item, value),
+              );
+            }).toList(),
+          ),
+          if (customOnly.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpacing.md),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: customOnly.map((item) {
+                return InputChip(
+                  label: Text(item),
+                  onDeleted: () => onSelected(item, false),
+                );
+              }).toList(),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  controller: customController,
+                  decoration: InputDecoration(labelText: customLabel),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => onAddCustom(),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              IconButton.filledTonal(
+                onPressed: onAddCustom,
+                icon: const Icon(Icons.add),
+                tooltip: 'Add custom item',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

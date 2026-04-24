@@ -126,7 +126,7 @@ class _MyAppState extends State<MyApp> {
       value: _repository,
       child: Consumer<AppRepository>(
         builder: (_, repository, __) => MaterialApp(
-          title: 'Crashpad',
+          title: 'Crash App',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.dark,
           initialRoute: _isAuthenticated ? '/home' : '/login',

@@ -1,7 +1,10 @@
+import 'package:crash_pad/config/app_config.dart';
 import 'package:crash_pad/data/app_repository.dart';
+import 'package:crash_pad/models/booking.dart';
 import 'package:crash_pad/models/crashpad.dart';
 import 'package:crash_pad/models/payment.dart';
 import 'package:crash_pad/services/availability_service.dart';
+import 'package:crash_pad/services/payment_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -82,5 +85,79 @@ void main() {
     expect(created.checkoutCharges.single.amount, 35);
     expect(created.minimumStayNights, 4);
     expect(created.distanceToAirportMiles, 6.5);
+  });
+
+  test('guest booking is visible to owner and can move through stay workflow',
+      () async {
+    final repository = AppRepository();
+    const paymentService = PaymentService();
+
+    await repository.logIn('owner@crashpads.com', 'owner123');
+    final owner = repository.currentUser!;
+    final ownerListings = await repository.fetchOwnerCrashpads(owner.email);
+    final crashpad = ownerListings.first;
+
+    await repository.logOut();
+    await repository.logIn('crew@crashpads.com', 'flysafe');
+    final guest = repository.currentUser!;
+    final draft = BookingDraft(
+      crashpadId: crashpad.id,
+      guestId: guest.id,
+      nightlyRate: crashpad.price,
+      nights: 5,
+      guestCount: 1,
+      additionalServices: const <ChargeLineItem>[
+        ChargeLineItem(
+          id: 'linen',
+          label: 'Linen reset',
+          amount: 20,
+          type: ChargeType.additionalService,
+        ),
+      ],
+    );
+    final authorized = paymentService.authorizeMockPayment(
+      paymentService.buildSummary(draft),
+    );
+
+    final booking = await repository.createBooking(
+      crashpad: crashpad,
+      draft: draft,
+      paymentSummary: authorized,
+    );
+
+    expect(booking.status, BookingStatus.confirmed);
+    expect(booking.paymentSummary.status, PaymentStatus.paid);
+    expect(
+      booking.paymentSummary.platformFeeRate,
+      AppConfig.platformFeeRate,
+    );
+    expect(
+      booking.paymentSummary.ownerPayout,
+      closeTo(
+        booking.paymentSummary.totalChargedToGuest -
+            booking.paymentSummary.platformFee,
+        0.01,
+      ),
+    );
+
+    final guestBookings = await repository.fetchGuestBookings(guest.email);
+    expect(guestBookings, hasLength(1));
+    expect(guestBookings.single.id, booking.id);
+
+    final ownerBookings = await repository.fetchOwnerBookings(owner.email);
+    expect(ownerBookings, hasLength(1));
+    expect(ownerBookings.single.guestEmail, guest.email);
+
+    await repository.updateBookingStatus(
+      bookingId: booking.id,
+      status: BookingStatus.active,
+    );
+    expect(repository.bookings.single.status, BookingStatus.active);
+
+    await repository.updateBookingStatus(
+      bookingId: booking.id,
+      status: BookingStatus.completed,
+    );
+    expect(repository.bookings.single.status, BookingStatus.completed);
   });
 }

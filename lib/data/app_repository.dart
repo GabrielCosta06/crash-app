@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/app_user.dart';
+import '../models/booking.dart';
 import '../models/crashpad.dart';
+import '../models/payment.dart';
 import '../models/review.dart';
 import 'mock_crashpad_data.dart';
 
@@ -19,6 +21,7 @@ class AppRepository extends ChangeNotifier {
   final Uuid _uuid = const Uuid();
   final List<AppUser> _users = [];
   final List<Crashpad> _crashpads = [];
+  final List<BookingRecord> _bookings = [];
   final Map<String, List<Review>> _reviewsByCrashpad = {};
   AppUser? _currentUser;
   bool _isDarkTheme = true;
@@ -28,6 +31,7 @@ class AppRepository extends ChangeNotifier {
   bool get isDarkTheme => _isDarkTheme;
 
   List<Crashpad> get crashpads => List.unmodifiable(_crashpads);
+  List<BookingRecord> get bookings => List.unmodifiable(_bookings);
 
   /// Dark mode is now the only supported product theme.
   void toggleTheme() {
@@ -118,6 +122,26 @@ class AppRepository extends ChangeNotifier {
         .toList();
   }
 
+  Future<List<BookingRecord>> fetchGuestBookings(String guestEmail) async {
+    await Future<void>.delayed(const Duration(milliseconds: 160));
+    return _bookings
+        .where(
+          (booking) =>
+              booking.guestEmail.toLowerCase() == guestEmail.toLowerCase(),
+        )
+        .toList();
+  }
+
+  Future<List<BookingRecord>> fetchOwnerBookings(String ownerEmail) async {
+    await Future<void>.delayed(const Duration(milliseconds: 160));
+    return _bookings
+        .where(
+          (booking) =>
+              booking.ownerEmail.toLowerCase() == ownerEmail.toLowerCase(),
+        )
+        .toList();
+  }
+
   /// Creates a new crashpad owned by the authenticated owner.
   Future<void> addCrashpad({
     required String name,
@@ -172,9 +196,52 @@ class AppRepository extends ChangeNotifier {
   Future<void> deleteCrashpads(Set<String> crashpadIds) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     _crashpads.removeWhere((crashpad) => crashpadIds.contains(crashpad.id));
+    _bookings
+        .removeWhere((booking) => crashpadIds.contains(booking.crashpadId));
     for (final id in crashpadIds) {
       _reviewsByCrashpad.remove(id);
     }
+    notifyListeners();
+  }
+
+  Future<BookingRecord> createBooking({
+    required Crashpad crashpad,
+    required BookingDraft draft,
+    required PaymentSummary paymentSummary,
+  }) async {
+    final guest = _currentUser;
+    if (guest == null || !guest.isEmployee) {
+      throw AuthException('Only authenticated crew members can book stays.');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 240));
+    final capturedPayment = paymentSummary.copyWith(status: PaymentStatus.paid);
+    final booking = BookingRecord(
+      id: _uuid.v4(),
+      crashpadId: crashpad.id,
+      crashpadName: crashpad.name,
+      ownerEmail: crashpad.owner.contact ?? '',
+      guestId: guest.id,
+      guestName: guest.displayName,
+      guestEmail: guest.email,
+      nights: draft.nights,
+      guestCount: draft.guestCount,
+      paymentSummary: capturedPayment,
+      createdAt: DateTime.now(),
+      status: BookingStatus.confirmed,
+    );
+    _bookings.insert(0, booking);
+    notifyListeners();
+    return booking;
+  }
+
+  Future<void> updateBookingStatus({
+    required String bookingId,
+    required BookingStatus status,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    final index = _bookings.indexWhere((booking) => booking.id == bookingId);
+    if (index == -1) return;
+    _bookings[index] = _bookings[index].copyWith(status: status);
     notifyListeners();
   }
 
@@ -276,6 +343,8 @@ class AppRepository extends ChangeNotifier {
     _reviewsByCrashpad
       ..clear()
       ..addAll(MockCrashpadSeed.reviewsByCrashpad(_crashpads));
+
+    _bookings.clear();
   }
 }
 
