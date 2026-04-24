@@ -1,17 +1,20 @@
-import 'dart:convert';
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_config.dart';
 import '../data/app_repository.dart';
 import '../models/app_user.dart';
+import '../models/booking.dart';
 import '../models/crashpad.dart';
+import '../models/payment.dart';
 import '../models/review.dart';
+import '../services/availability_service.dart';
+import '../services/payment_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_components.dart';
+import '../widgets/crashpad_listing_card.dart';
 import '../widgets/interaction_feedback.dart';
 
-/// Detailed presentation of a crashpad with gallery, metrics and reviews.
 class OwnerDetailsScreen extends StatefulWidget {
   const OwnerDetailsScreen({super.key, required this.crashpad});
 
@@ -24,31 +27,27 @@ class OwnerDetailsScreen extends StatefulWidget {
 class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
   late Crashpad _crashpad;
   late Future<List<Review>> _reviewsFuture;
-  int _currentImage = 0;
 
   @override
   void initState() {
     super.initState();
     _crashpad = widget.crashpad;
     _reviewsFuture = _fetchReviews();
-    // Use post-frame callback to avoid calling notifyListeners during build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _trackClick();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _trackClick());
   }
 
   Future<void> _trackClick() async {
     final repository = context.read<AppRepository>();
     final user = repository.currentUser;
-    if (user != null && user.email.toLowerCase() == _crashpad.owner.contact?.toLowerCase()) {
+    if (user != null &&
+        user.email.toLowerCase() == _crashpad.owner.contact?.toLowerCase()) {
       return;
     }
     await repository.incrementClickCount(_crashpad.id);
   }
 
   Future<List<Review>> _fetchReviews() {
-    final repository = context.read<AppRepository>();
-    return repository.fetchReviews(_crashpad.id);
+    return context.read<AppRepository>().fetchReviews(_crashpad.id);
   }
 
   Future<void> _addReview() async {
@@ -65,7 +64,6 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
       context: context,
       builder: (context) => const _ReviewDialog(),
     );
-
     if (result == null) return;
 
     await repository.addReview(
@@ -74,21 +72,15 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
       comment: result.comment,
       rating: result.rating,
     );
-
     if (!mounted) return;
-    final newFuture = _fetchReviews();
-    setState(() {
-      _reviewsFuture = newFuture;
-    });
+    setState(() => _reviewsFuture = _fetchReviews());
     await showActionFeedback(
       context: context,
       icon: Icons.reviews_outlined,
-      title: 'Thanks for the insight',
-      message: 'Your experience is now helping other crew members.',
-      color: AppPalette.neonPulse,
-      displayDuration: const Duration(milliseconds: 1400),
+      title: 'Review added',
+      message: 'Your crew insight is now visible.',
+      color: AppPalette.cyan,
     );
-    if (!mounted) return;
   }
 
   @override
@@ -96,259 +88,400 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
     final repository = context.watch<AppRepository>();
     final isEmployee = repository.currentUser?.userType == AppUserType.employee;
     final averageRating = repository.calculateAverageRating(_crashpad.id);
+    final availability = const AvailabilityService().summarize(_crashpad);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Crashpad overview'),
         leading: const AnimatedBackButton(),
-      ),
-      floatingActionButton: isEmployee
-          ? TapScale(
-              child: FloatingActionButton.extended(
-                onPressed: _addReview,
-                icon: const Icon(Icons.reviews_outlined),
-                label: const Text('Share experience'),
-              ),
-            )
-          : null,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ImageCarousel(
-              imageUrls: _crashpad.imageUrls,
-              currentIndex: _currentImage,
-              onPageChanged: (index) => setState(() => _currentImage = index),
-              heroTag: 'crashpad-${_crashpad.id}',
+        title: const Text('Crashpad details'),
+        actions: <Widget>[
+          if (isEmployee)
+            IconButton(
+              onPressed: _addReview,
+              icon: const Icon(Icons.rate_review_outlined),
+              tooltip: 'Add review',
             ),
-            const SizedBox(height: 24),
-            _PrimaryDetails(crashpad: _crashpad, rating: averageRating),
-            const SizedBox(height: 24),
-            _DescriptionCard(description: _crashpad.description),
-            const SizedBox(height: 24),
-            _OwnerContact(owner: _crashpad.owner),
-            const SizedBox(height: 24),
-            _ReviewsSection(reviewsFuture: _reviewsFuture),
-          ],
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: ResponsivePage(
+            maxWidth: 1240,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide =
+                        constraints.maxWidth >= AppBreakpoints.desktop;
+                    final gallery = _ListingHero(
+                      crashpad: _crashpad,
+                      averageRating: averageRating,
+                      availability: availability,
+                    );
+                    final booking = _BookingPanel(crashpad: _crashpad);
+
+                    if (!isWide) {
+                      return Column(
+                        children: <Widget>[
+                          gallery,
+                          const SizedBox(height: AppSpacing.xxl),
+                          booking,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(flex: 7, child: gallery),
+                        const SizedBox(width: AppSpacing.xxl),
+                        Expanded(flex: 4, child: booking),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: AppSpacing.xxxl),
+                _DetailsGrid(crashpad: _crashpad),
+                const SizedBox(height: AppSpacing.xxxl),
+                _RoomsSection(crashpad: _crashpad),
+                const SizedBox(height: AppSpacing.xxxl),
+                _ReviewsSection(reviewsFuture: _reviewsFuture),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _ImageCarousel extends StatefulWidget {
-  const _ImageCarousel({
-    required this.imageUrls,
-    required this.currentIndex,
-    required this.onPageChanged,
-    this.heroTag,
+class _ListingHero extends StatelessWidget {
+  const _ListingHero({
+    required this.crashpad,
+    required this.averageRating,
+    required this.availability,
   });
 
-  final List<String> imageUrls;
-  final int currentIndex;
-  final ValueChanged<int> onPageChanged;
-  final String? heroTag;
-
-  @override
-  State<_ImageCarousel> createState() => _ImageCarouselState();
-}
-
-class _ImageCarouselState extends State<_ImageCarousel> {
-  late final PageController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = PageController(initialPage: widget.currentIndex);
-  }
-
-  @override
-  void didUpdateWidget(covariant _ImageCarousel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentIndex != widget.currentIndex &&
-        _controller.hasClients &&
-        _controller.page?.round() != widget.currentIndex) {
-      _controller.animateToPage(
-        widget.currentIndex,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.imageUrls.isEmpty) {
-      return Container(
-        height: 220,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          color: AppPalette.deepSpace.withValues(alpha: 0.8),
-        ),
-        child: const Center(
-          child: Icon(Icons.image_outlined, size: 48, color: AppPalette.softSlate),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        SizedBox(
-          height: 220,
-          child: PageView.builder(
-            controller: _controller,
-            itemCount: widget.imageUrls.length,
-            onPageChanged: widget.onPageChanged,
-            itemBuilder: (context, index) {
-              final url = widget.imageUrls[index];
-              final page = _controller.hasClients
-                  ? (_controller.page ?? _controller.initialPage.toDouble())
-                  : _controller.initialPage.toDouble();
-              final delta = (index - page);
-              final content = ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Transform.translate(
-                  offset: Offset(delta * 12, 0),
-                  child: _buildImage(url),
-                ),
-              );
-              if (index == 0 && widget.heroTag != null) {
-                return Hero(tag: widget.heroTag!, child: content);
-              }
-              return content;
-            },
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            widget.imageUrls.length,
-            (index) => AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              height: 6,
-              width: widget.currentIndex == index ? 24 : 12,
-              decoration: BoxDecoration(
-                color: widget.currentIndex == index
-                    ? AppPalette.neonPulse
-                    : Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildImage(String url) {
-    if (url.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.cover,
-        placeholder: (context, _) => Container(
-          color: AppPalette.deepSpace.withValues(alpha: 0.8),
-          child: const Center(child: CircularProgressIndicator()),
-        ),
-        errorWidget: (context, url, error) => Container(
-          color: AppPalette.deepSpace.withValues(alpha: 0.8),
-          child: const Icon(Icons.broken_image_outlined),
-        ),
-      );
-    }
-    try {
-      final bytes = base64Decode(url);
-      return Image.memory(bytes, fit: BoxFit.cover);
-    } catch (_) {
-      return Container(
-        color: AppPalette.deepSpace.withValues(alpha: 0.8),
-        child: const Icon(Icons.broken_image_outlined),
-      );
-    }
-  }
-}
-
-class _PrimaryDetails extends StatelessWidget {
-  const _PrimaryDetails({required this.crashpad, required this.rating});
-
   final Crashpad crashpad;
-  final double rating;
+  final double averageRating;
+  final AvailabilitySummary availability;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: AppPalette.deepSpace.withValues(alpha: 0.8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  crashpad.name,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.xxl),
+          child: Stack(
+            children: <Widget>[
+              CrashpadImage(
+                imageUrls: crashpad.imageUrls,
+                height:
+                    MediaQuery.sizeOf(context).width >= AppBreakpoints.tablet
+                        ? 430
+                        : 280,
+                width: double.infinity,
+                heroTag: 'crashpad-${crashpad.id}',
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: <Color>[
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.74),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  color: AppPalette.neonPulse.withValues(alpha: 0.15),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.star, color: AppPalette.neonPulse, size: 18),
-                    const SizedBox(width: 4),
-                    Text(rating.toStringAsFixed(1)),
+              Positioned(
+                left: 22,
+                right: 22,
+                bottom: 22,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: <Widget>[
+                        StatusBadge(
+                          label: crashpad.bedModel.label,
+                          icon: Icons.bed_outlined,
+                          color: crashpad.bedModel == CrashpadBedModel.cold
+                              ? AppPalette.success
+                              : AppPalette.blueSoft,
+                        ),
+                        StatusBadge(
+                          label:
+                              '${availability.availableToBook} spaces available',
+                          icon: Icons.event_available_outlined,
+                          color: availability.hasAvailability
+                              ? AppPalette.success
+                              : AppPalette.warning,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      crashpad.name,
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineMedium
+                          ?.copyWith(color: AppPalette.text),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${crashpad.location} | Nearest airport: ${crashpad.nearestAirport}',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppPalette.text.withValues(alpha: 0.86)),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Icon(Icons.location_on_outlined, size: 18),
-              const SizedBox(width: 6),
-              Expanded(child: Text(crashpad.location)),
-            ],
+        ),
+        const SizedBox(height: AppSpacing.xxl),
+        Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: <Widget>[
+            _FactPill(
+              icon: Icons.star_rounded,
+              label: averageRating == 0
+                  ? 'New listing'
+                  : '${averageRating.toStringAsFixed(1)} crew rating',
+            ),
+            _FactPill(
+              icon: Icons.king_bed_outlined,
+              label: '${availability.totalPhysicalBeds} physical beds',
+            ),
+            _FactPill(
+              icon: Icons.groups_2_outlined,
+              label: '${crashpad.totalActiveGuests} active guests',
+            ),
+            if (crashpad.distanceToAirportMiles != null)
+              _FactPill(
+                icon: Icons.route_outlined,
+                label:
+                    '${crashpad.distanceToAirportMiles!.toStringAsFixed(1)} miles to ${crashpad.nearestAirport}',
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _BookingPanel extends StatefulWidget {
+  const _BookingPanel({required this.crashpad});
+
+  final Crashpad crashpad;
+
+  @override
+  State<_BookingPanel> createState() => _BookingPanelState();
+}
+
+class _BookingPanelState extends State<_BookingPanel> {
+  final PaymentService _paymentService = const PaymentService();
+  final Set<String> _selectedServices = <String>{};
+  int _nights = AppConfig.defaultBookingNights;
+  int _guestCount = AppConfig.defaultGuestCount;
+
+  PaymentSummary get _summary {
+    final selected = widget.crashpad.services
+        .where((service) => _selectedServices.contains(service.id))
+        .map((service) => service.toLineItem())
+        .toList();
+
+    return _paymentService.buildSummary(
+      BookingDraft(
+        crashpadId: widget.crashpad.id,
+        guestId: 'mock-guest',
+        nightlyRate: widget.crashpad.price,
+        nights: _nights,
+        guestCount: _guestCount,
+        additionalServices: selected,
+      ),
+    );
+  }
+
+  Future<void> _showMockPayment() async {
+    final authorized = _paymentService.authorizeMockPayment(_summary);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mock payment ready'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: SingleChildScrollView(
+            child: PaymentSummaryCard(summary: authorized),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.local_airport_outlined, size: 18),
-              const SizedBox(width: 6),
-              Text('Nearest airport: ${crashpad.nearestAirport}'),
-            ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
           ),
-          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              showActionFeedback(
+                context: context,
+                icon: Icons.check_circle_outline,
+                title: 'Mock payment captured',
+                message: 'This placeholder is ready to be replaced by Stripe.',
+                color: AppPalette.success,
+              );
+            },
+            child: const Text('Confirm mock payment'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final availability = const AvailabilityService().summarize(widget.crashpad);
+
+    return CrashSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('Book this stay', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 6),
+          Text(
+            widget.crashpad.bedModel.guestExplanation,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppPalette.textMuted),
+          ),
+          const SizedBox(height: AppSpacing.xl),
           Row(
-            children: [
-              const Icon(Icons.bed_outlined, size: 18),
-              const SizedBox(width: 6),
-              Text('Bed type: ${crashpad.bedType}'),
-              const Spacer(),
-              Text(
-                '\$${crashpad.price.toStringAsFixed(0)}/night',
-                style: const TextStyle(
-                  color: AppPalette.neonPulse,
-                  fontWeight: FontWeight.w600,
+            children: <Widget>[
+              Expanded(
+                child: _StepperField(
+                  label: 'Nights',
+                  value: _nights,
+                  min: widget.crashpad.minimumStayNights,
+                  max: 30,
+                  onChanged: (value) => setState(() => _nights = value),
                 ),
+              ),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: _StepperField(
+                  label: 'Guests',
+                  value: _guestCount,
+                  min: 1,
+                  max: availability.availableToBook.clamp(1, 8).toInt(),
+                  onChanged: (value) => setState(() => _guestCount = value),
+                ),
+              ),
+            ],
+          ),
+          if (widget.crashpad.services.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpacing.xl),
+            Text(
+              'Additional services',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ...widget.crashpad.services.map((service) {
+              final selected = _selectedServices.contains(service.id);
+              return CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: selected,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(service.name),
+                subtitle: Text(
+                  '${service.description}  |  \$${service.price.toStringAsFixed(2)}',
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    if (value ?? false) {
+                      _selectedServices.add(service.id);
+                    } else {
+                      _selectedServices.remove(service.id);
+                    }
+                  });
+                },
+              );
+            }),
+          ],
+          const SizedBox(height: AppSpacing.xl),
+          PaymentSummaryCard(summary: _summary),
+          const SizedBox(height: AppSpacing.xl),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: availability.hasAvailability ? _showMockPayment : null,
+              icon: const Icon(Icons.lock_outline),
+              label: const Text('Continue to mock payment'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepperField extends StatelessWidget {
+  const _StepperField({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return CrashSurface(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.md,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppPalette.textMuted),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              IconButton.filledTonal(
+                onPressed: value > min ? () => onChanged(value - 1) : null,
+                icon: const Icon(Icons.remove),
+              ),
+              Expanded(
+                child: Text(
+                  '$value',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              IconButton.filledTonal(
+                onPressed: value < max ? () => onChanged(value + 1) : null,
+                icon: const Icon(Icons.add),
               ),
             ],
           ),
@@ -358,37 +491,75 @@ class _PrimaryDetails extends StatelessWidget {
   }
 }
 
-class _DescriptionCard extends StatelessWidget {
-  const _DescriptionCard({required this.description});
+class _DetailsGrid extends StatelessWidget {
+  const _DetailsGrid({required this.crashpad});
 
-  final String description;
+  final Crashpad crashpad;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isLight = theme.brightness == Brightness.light;
-    final cardColor = isLight ? AppPalette.lightSurface : AppPalette.deepSpace.withValues(alpha: 0.85);
-    final textColor = isLight ? AppPalette.lightText : Colors.white;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: cardColor,
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= AppBreakpoints.tablet;
+        final children = <Widget>[
+          _DescriptionBlock(crashpad: crashpad),
+          _RulesAndFeesBlock(crashpad: crashpad),
+        ];
+
+        if (!isWide) {
+          return Column(
+            children: children
+                .map(
+                  (child) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                    child: child,
+                  ),
+                )
+                .toList(),
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(child: children.first),
+            const SizedBox(width: AppSpacing.xxl),
+            Expanded(child: children.last),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _DescriptionBlock extends StatelessWidget {
+  const _DescriptionBlock({required this.crashpad});
+
+  final Crashpad crashpad;
+
+  @override
+  Widget build(BuildContext context) {
+    return CrashSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Experience',
-            style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
-          ),
+        children: <Widget>[
+          Text('What guests get',
+              style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          Text(
-            description,
-            style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+          Text(crashpad.description),
+          const SizedBox(height: AppSpacing.xl),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: crashpad.amenities
+                .map(
+                  (amenity) => StatusBadge(
+                    label: amenity,
+                    icon: Icons.check_circle_outline,
+                    color: AppPalette.blueSoft,
+                  ),
+                )
+                .toList(),
           ),
         ],
       ),
@@ -396,54 +567,123 @@ class _DescriptionCard extends StatelessWidget {
   }
 }
 
-class _OwnerContact extends StatelessWidget {
-  const _OwnerContact({required this.owner});
+class _RulesAndFeesBlock extends StatelessWidget {
+  const _RulesAndFeesBlock({required this.crashpad});
 
-  final Owner owner;
+  final Crashpad crashpad;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isLight = theme.brightness == Brightness.light;
-    final cardColor = isLight ? AppPalette.lightSurface : AppPalette.deepSpace.withValues(alpha: 0.85);
-  final borderColor = isLight ? AppPalette.lightPrimary.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.04);
-    final textColor = isLight ? AppPalette.lightText : Colors.white;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: cardColor,
-        border: Border.all(color: borderColor),
-      ),
+    return CrashSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Owner',
-            style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
-          ),
+        children: <Widget>[
+          Text('Rules and checkout charges',
+              style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(Icons.person_outline, size: 18, color: textColor),
-              const SizedBox(width: 8),
-              Text(owner.name, style: theme.textTheme.bodyMedium?.copyWith(color: textColor)),
-            ],
+          ...crashpad.houseRules.map(
+            (rule) => _BulletLine(icon: Icons.rule_outlined, text: rule),
           ),
-          if (owner.contact != null) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.alternate_email, size: 18),
-                const SizedBox(width: 8),
-                Expanded(child: Text(owner.contact!)),
-              ],
+          if (crashpad.checkoutCharges.isNotEmpty) ...<Widget>[
+            const Divider(height: 30),
+            ...crashpad.checkoutCharges.map(
+              (charge) => _BulletLine(
+                icon: Icons.receipt_long_outlined,
+                text:
+                    '${charge.name}: \$${charge.amount.toStringAsFixed(2)} - ${charge.description}',
+              ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RoomsSection extends StatelessWidget {
+  const _RoomsSection({required this.crashpad});
+
+  final Crashpad crashpad;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const SectionHeading(
+          title: 'Rooms and bed logic',
+          subtitle:
+              'Owners can support assigned cold beds, rotating hot beds, or both.',
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= AppBreakpoints.desktop
+                ? 3
+                : constraints.maxWidth >= AppBreakpoints.tablet
+                    ? 2
+                    : 1;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: crashpad.rooms.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: columns == 1 ? 1.55 : 1.2,
+              ),
+              itemBuilder: (context, index) => _RoomCard(
+                room: crashpad.rooms[index],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _RoomCard extends StatelessWidget {
+  const _RoomCard({required this.room});
+
+  final CrashpadRoom room;
+
+  @override
+  Widget build(BuildContext context) {
+    final isHot = room.bedModel == CrashpadBedModel.hot;
+    return CrashSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(room.name,
+                    style: Theme.of(context).textTheme.titleMedium),
+              ),
+              StatusBadge(label: room.bedModel.shortLabel),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _BulletLine(
+            icon: Icons.king_bed_outlined,
+            text: '${room.physicalBeds} physical beds',
+          ),
+          _BulletLine(
+            icon:
+                isHot ? Icons.groups_2_outlined : Icons.assignment_ind_outlined,
+            text: isHot
+                ? '${room.availableHotSlots} hot-bed slots open'
+                : '${room.availableColdBeds} assigned beds open',
+          ),
+          _BulletLine(
+            icon: Icons.person_pin_circle_outlined,
+            text: '${room.activeGuests} active guests',
+          ),
+          if (room.storageNote != null)
+            _BulletLine(
+                icon: Icons.inventory_2_outlined, text: room.storageNote!),
         ],
       ),
     );
@@ -460,55 +700,35 @@ class _ReviewsSection extends StatelessWidget {
     return FutureBuilder<List<Review>>(
       future: reviewsFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              color: AppPalette.deepSpace.withValues(alpha: 0.85),
+        final reviews = snapshot.data ?? <Review>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const SectionHeading(
+              title: 'Crew reviews',
+              subtitle: 'Recent guest feedback from verified crew members.',
             ),
-            child: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) {
-          return _ReviewError(onRetry: () {});
-        }
-        final reviews = snapshot.data ?? [];
-        if (reviews.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              color: AppPalette.deepSpace.withValues(alpha: 0.85),
-            ),
-            child: const Text('No reviews yet. Be the first to share your experience.'),
-          );
-        }
-
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            color: AppPalette.deepSpace.withValues(alpha: 0.85),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Crew insights',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+            const SizedBox(height: AppSpacing.lg),
+            if (snapshot.connectionState == ConnectionState.waiting)
+              const Center(child: CircularProgressIndicator())
+            else if (reviews.isEmpty)
+              const EmptyStatePanel(
+                icon: Icons.reviews_outlined,
+                title: 'No reviews yet',
+                message: 'Verified crew reviews will appear here.',
+              )
+            else
+              Column(
+                children: reviews
+                    .map(
+                      (review) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                        child: _ReviewTile(review: review),
+                      ),
+                    )
+                    .toList(),
               ),
-              const SizedBox(height: 16),
-              ...reviews.map(
-                (review) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _ReviewTile(review: review),
-                ),
-              ),
-            ],
-          ),
+          ],
         );
       },
     );
@@ -522,45 +742,33 @@ class _ReviewTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: Colors.white.withValues(alpha: 0.05),
-      ),
+    return CrashSurface(
+      radius: AppRadius.lg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           Row(
-            children: [
-              const Icon(Icons.person_outline, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                review.employeeName,
-                style: const TextStyle(fontWeight: FontWeight.w600),
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  review.employeeName,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
-              const Spacer(),
-              Row(
-                children: [
-                  const Icon(Icons.star, size: 16, color: AppPalette.warning),
-                  const SizedBox(width: 4),
-                  Text(review.rating.toStringAsFixed(1)),
-                ],
-              ),
+              const Icon(Icons.star_rounded, color: AppPalette.warning),
+              const SizedBox(width: 4),
+              Text(review.rating.toStringAsFixed(1)),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            review.comment,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 6),
+          Text(review.comment),
+          const SizedBox(height: 8),
           Text(
             _formatDate(review.createdAt),
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: AppPalette.softSlate),
+                ?.copyWith(color: AppPalette.textMuted),
           ),
         ],
       ),
@@ -568,28 +776,40 @@ class _ReviewTile extends StatelessWidget {
   }
 }
 
-class _ReviewError extends StatelessWidget {
-  const _ReviewError({required this.onRetry});
+class _FactPill extends StatelessWidget {
+  const _FactPill({
+    required this.icon,
+    required this.label,
+  });
 
-  final VoidCallback onRetry;
+  final IconData icon;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: AppPalette.deepSpace.withValues(alpha: 0.85),
-      ),
-      child: Column(
+    return StatusBadge(label: label, icon: icon, color: AppPalette.textMuted);
+  }
+}
+
+class _BulletLine extends StatelessWidget {
+  const _BulletLine({
+    required this.icon,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Reviews unavailable'),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: onRetry,
-            child: const Text('Retry'),
-          ),
+        children: <Widget>[
+          Icon(icon, size: 18, color: AppPalette.blueSoft),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text)),
         ],
       ),
     );
@@ -597,7 +817,8 @@ class _ReviewError extends StatelessWidget {
 }
 
 class _ReviewDraft {
-  _ReviewDraft({required this.comment, required this.rating});
+  const _ReviewDraft({required this.comment, required this.rating});
+
   final String comment;
   final double rating;
 }
@@ -628,20 +849,21 @@ class _ReviewDialogState extends State<_ReviewDialog> {
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children: <Widget>[
             TextFormField(
               controller: _commentController,
               maxLines: 3,
               decoration: const InputDecoration(
                 labelText: 'Comment',
-                hintText: 'What made this crashpad stand out?',
+                hintText: 'What should other crew know?',
               ),
-              validator: (value) =>
-                  value == null || value.trim().length < 10 ? 'Be a bit more descriptive' : null,
+              validator: (value) => value == null || value.trim().length < 10
+                  ? 'Be a bit more descriptive'
+                  : null,
             ),
             const SizedBox(height: 16),
             Row(
-              children: [
+              children: <Widget>[
                 Expanded(
                   child: Slider(
                     value: _rating,
@@ -652,14 +874,13 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                     label: _rating.toStringAsFixed(1),
                   ),
                 ),
-                const SizedBox(width: 8),
                 Text(_rating.toStringAsFixed(1)),
               ],
             ),
           ],
         ),
       ),
-      actions: [
+      actions: <Widget>[
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),

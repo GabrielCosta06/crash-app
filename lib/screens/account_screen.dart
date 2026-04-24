@@ -72,7 +72,7 @@ class _AccountScreenState extends State<AccountScreen> {
     return Scaffold(
       appBar: PageHeader(
         title: 'My profile',
-        subtitle: 'Manage your crew identity, preferences, and theme.',
+        subtitle: 'Manage your crew identity and demo account details.',
         icon: Icons.person_outline,
         actions: [
           IconButton(
@@ -90,16 +90,15 @@ class _AccountScreenState extends State<AccountScreen> {
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
         child: Column(
           children: [
-            // ...existing code...
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
                 color: Theme.of(context).cardColor,
                 border: Border.all(
-          color: Theme.of(context).brightness == Brightness.light
-            ? AppPalette.lightPrimary.withValues(alpha: 0.08)
-            : Colors.white.withValues(alpha: 0.06),
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? AppPalette.lightPrimary.withValues(alpha: 0.08)
+                      : Colors.white.withValues(alpha: 0.06),
                 ),
               ),
               child: Row(
@@ -109,11 +108,13 @@ class _AccountScreenState extends State<AccountScreen> {
                     children: [
                       CircleAvatar(
                         radius: 42,
-            backgroundColor: Theme.of(context).brightness == Brightness.light
-              ? AppPalette.lightPrimary.withValues(alpha: 0.12)
-              : AppPalette.aurora.withValues(alpha: 0.2),
-                        backgroundImage:
-                            avatarBytes != null ? MemoryImage(avatarBytes) : null,
+                        backgroundColor: Theme.of(context).brightness ==
+                                Brightness.light
+                            ? AppPalette.lightPrimary.withValues(alpha: 0.12)
+                            : AppPalette.aurora.withValues(alpha: 0.2),
+                        backgroundImage: avatarBytes != null
+                            ? MemoryImage(avatarBytes)
+                            : null,
                         child: avatarBytes == null
                             ? Text(
                                 user.initials,
@@ -136,12 +137,14 @@ class _AccountScreenState extends State<AccountScreen> {
                                 ? const SizedBox(
                                     height: 14,
                                     width: 14,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   )
                                 : Icon(
                                     Icons.edit,
                                     size: 14,
-                                    color: Theme.of(context).colorScheme.onSurface,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
                                   ),
                           ),
                         ),
@@ -155,10 +158,14 @@ class _AccountScreenState extends State<AccountScreen> {
                       children: [
                         Text(
                           user.displayName,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).brightness == Brightness.light ? AppPalette.lightText : Colors.white,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.light
+                                        ? AppPalette.lightText
+                                        : Colors.white,
+                                  ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -166,21 +173,33 @@ class _AccountScreenState extends State<AccountScreen> {
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(color: Theme.of(context).brightness == Brightness.light ? AppPalette.lightTextSecondary : AppPalette.softSlate),
+                              ?.copyWith(
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.light
+                                      ? AppPalette.lightTextSecondary
+                                      : AppPalette.softSlate),
                         ),
                         const SizedBox(height: 12),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(14),
-              color: user.isSubscribed
-                ? AppPalette.success.withValues(alpha: 0.15)
-                : (Theme.of(context).brightness == Brightness.light ? AppPalette.lightPrimary.withValues(alpha: 0.06) : AppPalette.deepSpace.withValues(alpha: 0.5)),
+                            color: user.isSubscribed
+                                ? AppPalette.success.withValues(alpha: 0.15)
+                                : (Theme.of(context).brightness ==
+                                        Brightness.light
+                                    ? AppPalette.lightPrimary
+                                        .withValues(alpha: 0.06)
+                                    : AppPalette.deepSpace
+                                        .withValues(alpha: 0.5)),
                           ),
                           child: Text(
-                            user.isSubscribed ? 'Crew Pro Member' : 'Free plan',
+                            user.isOwner ? 'Owner account' : 'Crew account',
                             style: TextStyle(
-                              color: user.isSubscribed ? AppPalette.success : (Theme.of(context).brightness == Brightness.light ? AppPalette.lightTextSecondary : AppPalette.softSlate),
+                              color: user.isOwner
+                                  ? AppPalette.blueSoft
+                                  : AppPalette.success,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -225,33 +244,20 @@ class _AccountScreenState extends State<AccountScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            // Theme toggle as its own card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                color: Theme.of(context).cardColor,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-              ),
-              child: const _ThemeToggleRow(),
-            ),
             _InfoCard(
-              title: 'Security',
+              title: 'Platform status',
               items: [
                 _InfoRow(
                   icon: Icons.lock_outline,
-                  label: 'Subscription',
-                  value: user.isSubscribed
-                      ? 'Access enabled | \$15/month'
-                      : 'Upgrade to unlock owner contact details',
-                  trailing: user.isSubscribed
-                      ? null
-                      : ElevatedButton(
-                          onPressed: () => Navigator.pushNamed(context, '/subscribe'),
-                          child: const Text('Upgrade'),
-                        ),
+                  label: 'Authentication',
+                  value:
+                      'Demo in-memory auth. Supabase Auth adapter is the intended production path.',
+                ),
+                const _InfoRow(
+                  icon: Icons.payments_outlined,
+                  label: 'Payments',
+                  value:
+                      'Mock payment summaries are enabled. Stripe is not connected yet.',
                 ),
               ],
             ),
@@ -272,8 +278,12 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isLight = theme.brightness == Brightness.light;
-    final cardColor = isLight ? AppPalette.lightSurface : AppPalette.deepSpace.withValues(alpha: 0.85);
-  final borderColor = isLight ? AppPalette.lightPrimary.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.06);
+    final cardColor = isLight
+        ? AppPalette.lightSurface
+        : AppPalette.deepSpace.withValues(alpha: 0.85);
+    final borderColor = isLight
+        ? AppPalette.lightPrimary.withValues(alpha: 0.08)
+        : Colors.white.withValues(alpha: 0.06);
     final textColor = isLight ? AppPalette.lightText : Colors.white;
     return Container(
       width: double.infinity,
@@ -289,9 +299,9 @@ class _InfoCard extends StatelessWidget {
           Text(
             title,
             style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
           ),
           const SizedBox(height: 16),
           ...items,
@@ -306,13 +316,11 @@ class _InfoRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
-    this.trailing,
   });
 
   final IconData icon;
   final String label;
   final String value;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -342,7 +350,6 @@ class _InfoRow extends StatelessWidget {
               ],
             ),
           ),
-          if (trailing != null) trailing!,
         ],
       ),
     );
@@ -364,7 +371,8 @@ class _SignedOutView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.person_off_outlined, size: 56, color: AppPalette.softSlate),
+            const Icon(Icons.person_off_outlined,
+                size: 56, color: AppPalette.softSlate),
             const SizedBox(height: 16),
             const Text('You are not signed in.'),
             const SizedBox(height: 8),
@@ -382,51 +390,3 @@ class _SignedOutView extends StatelessWidget {
 String _formatDate(DateTime date) {
   return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }
-
-class _ThemeToggleRow extends StatelessWidget {
-  const _ThemeToggleRow();
-
-  @override
-  Widget build(BuildContext context) {
-    final repository = context.watch<AppRepository>();
-    
-    return Row(
-      children: [
-        Icon(
-          repository.isDarkTheme ? Icons.dark_mode : Icons.light_mode,
-          color: Theme.of(context).iconTheme.color,
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Theme',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-              Text(
-                repository.isDarkTheme ? 'Dark mode' : 'Light mode',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: repository.isDarkTheme 
-                        ? AppPalette.softSlate 
-                        : AppPalette.lightTextSecondary,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        Switch.adaptive(
-          value: repository.isDarkTheme,
-          onChanged: (_) => repository.toggleTheme(),
-          activeTrackColor: repository.isDarkTheme
-              ? AppPalette.neonPulse
-              : AppPalette.lightPrimary,
-        ),
-      ],
-    );
-  }
-}
-

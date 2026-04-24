@@ -112,7 +112,8 @@ Future<void> showActionFeedback({
     },
     transitionBuilder: (context, animation, secondaryAnimation, child) {
       final fade = CurvedAnimation(parent: animation, curve: Curves.easeOut);
-      final scale = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+      final scale =
+          CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
       return FadeTransition(
         opacity: fade,
         child: ScaleTransition(
@@ -165,7 +166,9 @@ class _ActionFeedbackDialogState extends State<_ActionFeedbackDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cardColor = theme.colorScheme.surface.withValues(alpha: theme.brightness == Brightness.dark ? 0.95 : 0.97,);
+    final cardColor = theme.colorScheme.surface.withValues(
+      alpha: theme.brightness == Brightness.dark ? 0.95 : 0.97,
+    );
 
     return Stack(
       children: [

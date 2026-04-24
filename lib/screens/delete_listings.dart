@@ -137,7 +137,8 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
                               child: OutlinedButton(
                                 onPressed: _selectedIds.isEmpty
                                     ? null
-                                    : () => setState(() => _selectedIds.clear()),
+                                    : () =>
+                                        setState(() => _selectedIds.clear()),
                                 child: const Text('Clear selection'),
                               ),
                             ),
@@ -147,8 +148,9 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
                             child: TapScale(
                               enabled: _selectedIds.isNotEmpty,
                               child: ElevatedButton(
-                                onPressed:
-                                    _selectedIds.isEmpty ? null : _deleteSelected,
+                                onPressed: _selectedIds.isEmpty
+                                    ? null
+                                    : _deleteSelected,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppPalette.danger,
                                 ),
@@ -258,5 +260,3 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
-
-

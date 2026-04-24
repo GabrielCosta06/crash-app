@@ -1,19 +1,151 @@
 import 'dart:convert';
 
-/// Domain model describing a crashpad listing.
-class Crashpad {
+import 'payment.dart';
+
+enum CrashpadBedModel {
+  hot,
+  cold,
+  flexible,
+}
+
+extension CrashpadBedModelLabel on CrashpadBedModel {
+  String get label {
+    switch (this) {
+      case CrashpadBedModel.hot:
+        return 'Hot Bed';
+      case CrashpadBedModel.cold:
+        return 'Cold Bed';
+      case CrashpadBedModel.flexible:
+        return 'Both';
+    }
+  }
+
+  String get shortLabel {
+    switch (this) {
+      case CrashpadBedModel.hot:
+        return 'Hot';
+      case CrashpadBedModel.cold:
+        return 'Cold';
+      case CrashpadBedModel.flexible:
+        return 'Mixed';
+    }
+  }
+
+  String get guestExplanation {
+    switch (this) {
+      case CrashpadBedModel.hot:
+        return 'Shared rotating beds. Availability is based on active guest capacity, so you may use different sleeping spaces during the stay.';
+      case CrashpadBedModel.cold:
+        return 'Dedicated assigned bed. The bed is reserved for you during the stay and is not shared with another guest.';
+      case CrashpadBedModel.flexible:
+        return 'This crashpad supports both dedicated cold beds and rotating hot-bed capacity depending on room selection.';
+    }
+  }
+}
+
+CrashpadBedModel crashpadBedModelFromLabel(String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized.contains('cold')) return CrashpadBedModel.cold;
+  if (normalized.contains('both') || normalized.contains('flex')) {
+    return CrashpadBedModel.flexible;
+  }
+  return CrashpadBedModel.hot;
+}
+
+class CrashpadBed {
+  const CrashpadBed({
+    required this.id,
+    required this.label,
+    this.isAssigned = false,
+    this.isAvailable = true,
+  });
+
+  final String id;
+  final String label;
+  final bool isAssigned;
+  final bool isAvailable;
+}
+
+class CrashpadRoom {
+  const CrashpadRoom({
+    required this.id,
+    required this.name,
+    required this.bedModel,
+    required this.beds,
+    required this.activeGuests,
+    required this.hotCapacity,
+    this.storageNote,
+  });
+
+  final String id;
+  final String name;
+  final CrashpadBedModel bedModel;
+  final List<CrashpadBed> beds;
+  final int activeGuests;
+  final int hotCapacity;
+  final String? storageNote;
+
+  int get physicalBeds => beds.length;
+
+  int get assignedBeds => beds.where((bed) => bed.isAssigned).length;
+
+  int get availableColdBeds =>
+      beds.where((bed) => bed.isAvailable && !bed.isAssigned).length;
+
+  int get availableHotSlots =>
+      (hotCapacity - activeGuests).clamp(0, 999).toInt();
+}
+
+class CrashpadService {
+  const CrashpadService({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.price,
+  });
+
   final String id;
   final String name;
   final String description;
-  final String location;
-  final Owner owner;
-  final List<String> imageUrls;
-  final DateTime dateAdded;
-  final String bedType;
   final double price;
-  final String nearestAirport;
-  final int clickCount;
 
+  ChargeLineItem toLineItem() {
+    return ChargeLineItem(
+      id: id,
+      label: name,
+      amount: price,
+      type: ChargeType.additionalService,
+    );
+  }
+}
+
+class CrashpadCheckoutCharge {
+  const CrashpadCheckoutCharge({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.amount,
+    required this.type,
+  });
+
+  final String id;
+  final String name;
+  final String description;
+  final double amount;
+  final ChargeType type;
+
+  ChargeLineItem toLineItem() {
+    return ChargeLineItem(
+      id: id,
+      label: name,
+      amount: amount,
+      type: type,
+    );
+  }
+}
+
+/// Domain model describing a crashpad listing.
+class Crashpad {
   Crashpad({
     required this.id,
     required this.name,
@@ -26,18 +158,53 @@ class Crashpad {
     required this.bedType,
     required this.price,
     required this.clickCount,
+    this.rooms = const <CrashpadRoom>[],
+    this.amenities = const <String>[],
+    this.houseRules = const <String>[],
+    this.services = const <CrashpadService>[],
+    this.checkoutCharges = const <CrashpadCheckoutCharge>[],
+    this.minimumStayNights = 1,
+    this.distanceToAirportMiles,
   });
+
+  final String id;
+  final String name;
+  final String description;
+  final String location;
+  final Owner owner;
+  final List<String> imageUrls;
+  final DateTime dateAdded;
+
+  /// Kept for backwards compatibility with the original string-based model.
+  final String bedType;
+  final double price;
+  final String nearestAirport;
+  final int clickCount;
+  final List<CrashpadRoom> rooms;
+  final List<String> amenities;
+  final List<String> houseRules;
+  final List<CrashpadService> services;
+  final List<CrashpadCheckoutCharge> checkoutCharges;
+  final int minimumStayNights;
+  final double? distanceToAirportMiles;
+
+  CrashpadBedModel get bedModel => crashpadBedModelFromLabel(bedType);
+
+  int get totalPhysicalBeds =>
+      rooms.fold<int>(0, (total, room) => total + room.physicalBeds);
+
+  int get totalActiveGuests =>
+      rooms.fold<int>(0, (total, room) => total + room.activeGuests);
 
   /// Creates a [Crashpad] model from a remote response.
   factory Crashpad.fromJson(Map<String, dynamic> json) {
-    // Parse image URLs from JSON array string or list
     List<String> images = [];
     final imageData = json['image_urls'];
     if (imageData != null) {
       if (imageData is String) {
         try {
           images = List<String>.from(jsonDecode(imageData));
-        } catch (e) {
+        } catch (_) {
           images = [];
         }
       } else if (imageData is List) {
@@ -58,8 +225,9 @@ class Crashpad {
       }),
       imageUrls: images,
       dateAdded: DateTime.parse(
-          json['created_at'] ?? DateTime.now().toIso8601String()),
-      bedType: json['bed_type']?.toString() ?? 'Unknown bed type',
+        json['created_at']?.toString() ?? DateTime.now().toIso8601String(),
+      ),
+      bedType: json['bed_type']?.toString() ?? 'Hot Bed',
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       clickCount: (json['click_count'] as int?) ?? 0,
     );
@@ -91,6 +259,13 @@ class Crashpad {
     double? price,
     String? nearestAirport,
     int? clickCount,
+    List<CrashpadRoom>? rooms,
+    List<String>? amenities,
+    List<String>? houseRules,
+    List<CrashpadService>? services,
+    List<CrashpadCheckoutCharge>? checkoutCharges,
+    int? minimumStayNights,
+    double? distanceToAirportMiles,
   }) {
     return Crashpad(
       id: id,
@@ -104,16 +279,24 @@ class Crashpad {
       price: price ?? this.price,
       nearestAirport: nearestAirport ?? this.nearestAirport,
       clickCount: clickCount ?? this.clickCount,
+      rooms: rooms ?? this.rooms,
+      amenities: amenities ?? this.amenities,
+      houseRules: houseRules ?? this.houseRules,
+      services: services ?? this.services,
+      checkoutCharges: checkoutCharges ?? this.checkoutCharges,
+      minimumStayNights: minimumStayNights ?? this.minimumStayNights,
+      distanceToAirportMiles:
+          distanceToAirportMiles ?? this.distanceToAirportMiles,
     );
   }
 }
 
 /// Represents the owner metadata for a crashpad.
 class Owner {
+  const Owner({required this.name, this.contact});
+
   final String name;
   final String? contact;
-
-  Owner({required this.name, this.contact});
 
   factory Owner.fromJson(Map<String, dynamic> json) => Owner(
         name: json['name']?.toString() ?? 'Unknown Owner',

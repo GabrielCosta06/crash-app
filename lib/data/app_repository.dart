@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -8,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../models/app_user.dart';
 import '../models/crashpad.dart';
 import '../models/review.dart';
+import 'mock_crashpad_data.dart';
 
 /// In-memory data source used to simulate authentication, listings,
 /// reviews and theming state for the demo experience.
@@ -21,7 +21,7 @@ class AppRepository extends ChangeNotifier {
   final List<Crashpad> _crashpads = [];
   final Map<String, List<Review>> _reviewsByCrashpad = {};
   AppUser? _currentUser;
-  bool _isDarkTheme = true; // Default to dark theme
+  bool _isDarkTheme = true;
 
   AppUser? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
@@ -29,15 +29,15 @@ class AppRepository extends ChangeNotifier {
 
   List<Crashpad> get crashpads => List.unmodifiable(_crashpads);
 
-  /// Toggles between light and dark themes.
+  /// Dark mode is now the only supported product theme.
   void toggleTheme() {
-    _isDarkTheme = !_isDarkTheme;
+    _isDarkTheme = true;
     notifyListeners();
   }
 
-  /// Forces the theme to the provided brightness.
+  /// Preserved for old callers while keeping the app dark-only.
   void setTheme(bool isDark) {
-    _isDarkTheme = isDark;
+    _isDarkTheme = true;
     notifyListeners();
   }
 
@@ -114,8 +114,7 @@ class AppRepository extends ChangeNotifier {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     return _crashpads
         .where((crashpad) =>
-            crashpad.owner.contact?.toLowerCase() ==
-            ownerEmail.toLowerCase())
+            crashpad.owner.contact?.toLowerCase() == ownerEmail.toLowerCase())
         .toList();
   }
 
@@ -128,10 +127,21 @@ class AppRepository extends ChangeNotifier {
     required String bedType,
     required double price,
     required List<String> imageUrls,
+    required List<CrashpadRoom> rooms,
+    required List<String> amenities,
+    required List<String> houseRules,
+    List<CrashpadService> services = const <CrashpadService>[],
+    List<CrashpadCheckoutCharge> checkoutCharges =
+        const <CrashpadCheckoutCharge>[],
+    int minimumStayNights = 1,
+    double? distanceToAirportMiles,
   }) async {
     final owner = _currentUser;
     if (owner == null || !owner.isOwner) {
       throw AuthException('Only authenticated owners can create listings.');
+    }
+    if (rooms.isEmpty) {
+      throw ArgumentError('At least one room is required.');
     }
     await Future<void>.delayed(const Duration(milliseconds: 250));
     final newCrashpad = Crashpad(
@@ -146,6 +156,13 @@ class AppRepository extends ChangeNotifier {
       bedType: bedType,
       price: price,
       clickCount: 0,
+      rooms: rooms,
+      amenities: amenities,
+      houseRules: houseRules,
+      services: services,
+      checkoutCharges: checkoutCharges,
+      minimumStayNights: minimumStayNights,
+      distanceToAirportMiles: distanceToAirportMiles,
     );
     _crashpads.insert(0, newCrashpad);
     notifyListeners();
@@ -238,123 +255,27 @@ class AppRepository extends ChangeNotifier {
   }
 
   void _seedData() {
-    final owner = AppUser(
-      id: _uuid.v4(),
-      email: 'owner@crashpads.com',
-      password: 'owner123',
-      firstName: 'Gabriel',
-      lastName: 'Costa',
-      countryOfBirth: 'USA',
-      dateOfBirth: DateTime(1988, 4, 12),
-      userType: AppUserType.owner,
-      isSubscribed: true,
-    );
-
-    final employee = AppUser(
-      id: _uuid.v4(),
-      email: 'crew@crashpads.com',
-      password: 'flysafe',
-      firstName: 'Rafael',
-      lastName: 'Costa',
-      countryOfBirth: 'Canada',
-      dateOfBirth: DateTime(1992, 9, 3),
-      userType: AppUserType.employee,
-      company: 'SkyFusion Airways',
-      badgeNumber: 'SF-8821',
-    );
+    final users = MockCrashpadSeed.users(_uuid);
+    final owner = users.firstWhere((user) => user.isOwner);
 
     _users
       ..clear()
-      ..addAll([owner, employee]);
+      ..addAll(users);
 
     _currentUser = null;
-
-    final List<Map<String, dynamic>> mockCrashpadData = [
-      {
-        'name': 'Skyline Loft Haven',
-        'description':
-            'Immerse yourself in panoramic skyline vistas with smart mood lighting, ergonomic workspace, and soundproof rest pods designed for restorative layovers.',
-        'location': '123 Aurora Ave, Seattle, WA, USA',
-        'nearestAirport': 'SEA',
-        'bedType': 'Hot Bed',
-        'price': 139.0,
-        'imageUrls': [
-          'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
-          'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1200&q=80',
-        ],
-        'clickCount': 48,
-      },
-      {
-        'name': 'Runway Retreat Capsule',
-        'description':
-            'Minimalist capsule suite with adaptive ambient lighting, integrated aromatherapy, and AI-assisted sleep tracking to sync with your next departure.',
-        'location': '88 Velocity Blvd, Austin, TX, USA',
-        'nearestAirport': 'AUS',
-        'bedType': 'Cold Bed',
-        'price': 98.5,
-        'imageUrls': [
-          'https://images.unsplash.com/photo-1493666438817-866a91353ca9?auto=format&fit=crop&w=1200&q=80',
-          'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80',
-        ],
-        'clickCount': 27,
-      },
-      {
-        'name': 'Altitude Zen Hub',
-        'description':
-            'Futuristic residence with chromed surfaces, biophilic walls, and biometric entry. Recharge in the meditation sphere or connect in the holo-collab lounge.',
-        'location': '701 Quantum Pkwy, San Francisco, CA, USA',
-        'nearestAirport': 'SFO',
-        'bedType': 'Both',
-        'price': 169.0,
-        'imageUrls': [
-          'https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=1200&q=80',
-          'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80',
-        ],
-        'clickCount': 65,
-      },
-    ];
 
     _crashpads
       ..clear()
       ..addAll(
-        mockCrashpadData.map(
-          (data) => Crashpad(
-            id: _uuid.v4(),
-            name: data['name'] as String,
-            description: data['description'] as String,
-            location: data['location'] as String,
-            nearestAirport: data['nearestAirport'] as String,
-            owner: Owner(name: owner.displayName, contact: owner.email),
-            imageUrls:
-                (data['imageUrls'] as List<dynamic>).cast<String>().toList(),
-            dateAdded: DateTime.now()
-                .subtract(Duration(days: Random().nextInt(30))),
-            bedType: data['bedType'] as String,
-            price: data['price'] as double,
-            clickCount: data['clickCount'] as int,
-          ),
+        MockCrashpadSeed.crashpads(
+          _uuid,
+          Owner(name: owner.displayName, contact: owner.email),
         ),
       );
 
-    _reviewsByCrashpad.clear();
-    for (final crashpad in _crashpads) {
-      _reviewsByCrashpad[crashpad.id] = [
-        Review(
-          employeeName: 'Alexandra Pierce',
-          comment:
-              'Loved the biometric entry and silent rest pods. Perfect reset between transatlantic rotations.',
-          rating: 4.8,
-          createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        ),
-        Review(
-          employeeName: 'Marcus Chen',
-          comment:
-              'Smart lighting + meditation sphere = instant calm. High-speed mesh network kept ops seamless.',
-          rating: 4.6,
-          createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        ),
-      ];
-    }
+    _reviewsByCrashpad
+      ..clear()
+      ..addAll(MockCrashpadSeed.reviewsByCrashpad(_crashpads));
   }
 }
 

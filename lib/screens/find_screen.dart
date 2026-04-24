@@ -1,16 +1,12 @@
-import 'dart:convert';
-import 'dart:math' as math;
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../data/app_repository.dart';
 import '../models/crashpad.dart';
 import '../theme/app_theme.dart';
-import '../widgets/page_header.dart';
+import '../widgets/app_components.dart';
+import '../widgets/crashpad_listing_card.dart';
 
-/// Advanced search experience for browsing crashpads.
 class FindScreen extends StatefulWidget {
   const FindScreen({
     super.key,
@@ -27,70 +23,52 @@ class FindScreen extends StatefulWidget {
 
 class _FindScreenState extends State<FindScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final List<String> _sortOptions = const [
+  final List<String> _bedTypes = const <String>[
+    'All',
+    'Hot Bed',
+    'Cold Bed',
+    'Both'
+  ];
+  final List<String> _sortOptions = const <String>[
     'Newest',
     'Price: Low to High',
     'Price: High to Low',
-    'Name',
+    'Airport',
   ];
-  final List<String> _bedTypes = const ['All', 'Hot Bed', 'Cold Bed', 'Both'];
 
-  List<Crashpad> _crashpads = const [];
-  List<Crashpad> _filteredCrashpads = const [];
-
-  String _selectedSort = 'Newest';
   String _selectedBedType = 'All';
-  bool _isLoading = true;
+  String _selectedSort = 'Newest';
 
   @override
   void initState() {
     super.initState();
     _searchController.text = widget.initialSearchQuery ?? '';
-    final initialBedType = widget.initialBedType;
-    if (initialBedType != null) {
-      if (initialBedType.toLowerCase() == 'all beds') {
-        _selectedBedType = 'All';
-      } else if (_bedTypes.contains(initialBedType)) {
-        _selectedBedType = initialBedType;
-      }
+    if (widget.initialBedType != null &&
+        _bedTypes.contains(widget.initialBedType)) {
+      _selectedBedType = widget.initialBedType!;
     }
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_isLoading) {
-      _fetchCrashpads();
-    }
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  Future<void> _fetchCrashpads() async {
-    setState(() => _isLoading = true);
-    try {
-      final repository = context.read<AppRepository>();
-      final items = await repository.fetchCrashpads();
-      if (!mounted) return;
-      setState(() {
-        _crashpads = items;
-        _applyFilters();
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _applyFilters() {
+  List<Crashpad> _results(List<Crashpad> crashpads) {
     final query = _searchController.text.trim().toLowerCase();
-    final bedType = _selectedBedType;
-
-    var results = _crashpads.where((crashpad) {
-      final matchesQuery = crashpad.name.toLowerCase().contains(query) ||
-          crashpad.location.toLowerCase().contains(query);
+    final results = crashpads.where((crashpad) {
       final matchesBed =
-          bedType == 'All' || crashpad.bedType == bedType;
-      return matchesQuery && matchesBed;
+          _selectedBedType == 'All' || crashpad.bedType == _selectedBedType;
+      final matchesQuery = query.isEmpty ||
+          <String>[
+            crashpad.name,
+            crashpad.location,
+            crashpad.nearestAirport,
+            crashpad.description,
+            ...crashpad.amenities,
+          ].join(' ').toLowerCase().contains(query);
+      return matchesBed && matchesQuery;
     }).toList();
 
     switch (_selectedSort) {
@@ -100,384 +78,283 @@ class _FindScreenState extends State<FindScreen> {
       case 'Price: High to Low':
         results.sort((a, b) => b.price.compareTo(a.price));
         break;
-      case 'Name':
-        results.sort((a, b) => a.name.compareTo(b.name));
+      case 'Airport':
+        results.sort((a, b) => a.nearestAirport.compareTo(b.nearestAirport));
         break;
       default:
         results.sort((a, b) => b.dateAdded.compareTo(a.dateAdded));
     }
-
-    setState(() => _filteredCrashpads = results);
-  }
-
-  Future<void> _onRefresh() async {
-    await _fetchCrashpads();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+    return results;
   }
 
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<AppRepository>();
-    final user = repository.currentUser;
+    final results = _results(repository.crashpads);
 
     return Scaffold(
-      appBar: PageHeader(
-        title: 'Discover crashpads',
-        subtitle: 'Scout the destinations crew loves most and refine your search.',
-        icon: Icons.travel_explore_outlined,
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.filter_list),
-            initialValue: _selectedSort,
-            color: Theme.of(context).cardColor,
-            onSelected: (value) {
-              setState(() => _selectedSort = value);
-              _applyFilters();
-            },
-            itemBuilder: (context) => _sortOptions
-                .map(
-                  (option) => PopupMenuItem<String>(
-                    value: option,
-                    child: Text(option),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _onRefresh,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: const InputDecoration(
-                        labelText: 'Search by name or location',
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onChanged: (_) => _applyFilters(),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: AnimatedSize(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeInOut,
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 8,
-                        children: _bedTypes.map((bedType) {
-                          final selected = _selectedBedType == bedType;
-                          return AnimatedScale(
-                            duration: const Duration(milliseconds: 180),
-                            curve: Curves.easeOut,
-                            scale: selected ? 1.0 : 0.96,
-                            child: ChoiceChip(
-                              label: Text(bedType),
-                              selected: selected,
-                              onSelected: (_) {
-                                setState(() => _selectedBedType = bedType);
-                                _applyFilters();
-                              },
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: _filteredCrashpads.isEmpty
-                        ? const _EmptyResults()
-                        : ListView.separated(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: _filteredCrashpads.length,
-                            itemBuilder: (context, index) {
-                              final crashpad = _filteredCrashpads[index];
-                              final animationDuration = Duration(
-                                milliseconds:
-                                    320 + math.min(index * 40, 240),
-                              );
-                              return TweenAnimationBuilder<double>(
-                                key: ValueKey(crashpad.id),
-                                tween: Tween(begin: 0.0, end: 1.0),
-                                duration: animationDuration,
-                                curve: Curves.easeOutCubic,
-                                builder: (context, value, child) {
-                                  final slideOffset = (1 - value) * 24;
-                                  return Opacity(
-                                    opacity: value,
-                                    child: Transform.translate(
-                                      offset: Offset(0, slideOffset),
-                                      child: Transform.scale(
-                                        scale: 0.95 + (0.05 * value),
-                                        child: child,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: _FindResultCard(
-                                  crashpad: crashpad,
-                                  onTap: () {
-                                    final isSubscribed =
-                                        user?.isSubscribed ?? false;
-                                    if (user == null || !isSubscribed) {
-                                      _promptSubscription(context);
-                                    } else {
-                                      Navigator.pushNamed(
-                                        context,
-                                        '/owner-details',
-                                        arguments: crashpad,
-                                      );
-                                    }
-                                  },
-                                ),
-                              );
-                            },
-                            separatorBuilder: (_, __) => const SizedBox(height: 16),
-                          ),
-                  ),
-                ],
-              ),
-      ),
-    );
-  }
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: ResponsivePage(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SectionHeading(
+                  title: 'Find a crashpad',
+                  subtitle:
+                      'Search by airport, city, amenity, price, and bed model.',
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                CrashSurface(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide =
+                          constraints.maxWidth >= AppBreakpoints.tablet;
+                      final search = TextField(
+                        controller: _searchController,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Search listings',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                      );
+                      final sort = DropdownButtonFormField<String>(
+                        initialValue: _selectedSort,
+                        decoration: const InputDecoration(
+                          labelText: 'Sort',
+                          prefixIcon: Icon(Icons.sort_rounded),
+                        ),
+                        items: _sortOptions
+                            .map(
+                              (option) => DropdownMenuItem<String>(
+                                value: option,
+                                child: Text(option),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _selectedSort = value);
+                          }
+                        },
+                      );
 
-  void _promptSubscription(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Unlock complete details'),
-        content: const Text(
-          'Subscribe for \$15/month to access owner contact info and advanced analytics.',
+                      if (!isWide) {
+                        return Column(
+                          children: <Widget>[
+                            search,
+                            const SizedBox(height: AppSpacing.lg),
+                            sort,
+                            const SizedBox(height: AppSpacing.lg),
+                            _BedChoiceRow(
+                              bedTypes: _bedTypes,
+                              selected: _selectedBedType,
+                              onSelected: (value) =>
+                                  setState(() => _selectedBedType = value),
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              Expanded(flex: 3, child: search),
+                              const SizedBox(width: AppSpacing.lg),
+                              Expanded(child: sort),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          _BedChoiceRow(
+                            bedTypes: _bedTypes,
+                            selected: _selectedBedType,
+                            onSelected: (value) =>
+                                setState(() => _selectedBedType = value),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxl),
+                if (results.isEmpty)
+                  const EmptyStatePanel(
+                    icon: Icons.search_off_outlined,
+                    title: 'No listings found',
+                    message:
+                        'Adjust the search, sort, or bed model filters and try again.',
+                  )
+                else
+                  _ResultLayout(
+                    results: results,
+                    onOpen: (crashpad) => Navigator.pushNamed(
+                      context,
+                      '/owner-details',
+                      arguments: crashpad,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Maybe later'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushNamed(context, '/subscribe');
-            },
-            child: const Text('Subscribe now'),
-          ),
-        ],
       ),
     );
   }
 }
 
-class _FindResultCard extends StatelessWidget {
-  const _FindResultCard({
-    required this.crashpad,
-    required this.onTap,
+class _BedChoiceRow extends StatelessWidget {
+  const _BedChoiceRow({
+    required this.bedTypes,
+    required this.selected,
+    required this.onSelected,
   });
 
-  final Crashpad crashpad;
-  final VoidCallback onTap;
+  final List<String> bedTypes;
+  final String selected;
+  final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<AppRepository>();
-    final averageRating =
-        repository.calculateAverageRating(crashpad.id).clamp(0.0, 5.0);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: AppPalette.deepSpace.withValues(alpha: 0.8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-        ),
-        child: Row(
-          children: [
-            _ResultImage(imageUrls: crashpad.imageUrls),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          crashpad.name,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ),
-                      const Icon(Icons.star, color: AppPalette.warning, size: 18),
-                      const SizedBox(width: 4),
-                      Text(averageRating.toStringAsFixed(1)),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined, size: 16),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          crashpad.location,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: AppPalette.softSlate),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Nearest airport: ${crashpad.nearestAirport}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: AppPalette.aurora.withValues(alpha: 0.12),
-                        ),
-                        child: Text(
-                          crashpad.bedType,
-                          style: const TextStyle(color: AppPalette.neonPulse),
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '\$${crashpad.price.toStringAsFixed(0)}/night',
-                        style: const TextStyle(
-                          color: AppPalette.neonPulse,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: bedTypes.map((bedType) {
+        return ChoiceChip(
+          label: Text(bedType),
+          selected: selected == bedType,
+          onSelected: (_) => onSelected(bedType),
+        );
+      }).toList(),
     );
   }
 }
 
-class _ResultImage extends StatelessWidget {
-  const _ResultImage({required this.imageUrls});
+class _ResultLayout extends StatelessWidget {
+  const _ResultLayout({
+    required this.results,
+    required this.onOpen,
+  });
 
-  final List<String> imageUrls;
+  final List<Crashpad> results;
+  final ValueChanged<Crashpad> onOpen;
 
   @override
   Widget build(BuildContext context) {
-    const double size = 96;
-    if (imageUrls.isEmpty) {
-      return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: AppPalette.deepSpace.withValues(alpha: 0.6),
-        ),
-        child: const Icon(Icons.image_outlined, color: AppPalette.softSlate),
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= AppBreakpoints.desktop) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                flex: 3,
+                child: _DesktopResultTable(results: results, onOpen: onOpen),
+              ),
+              const SizedBox(width: AppSpacing.xxl),
+              Expanded(
+                flex: 2,
+                child: CrashpadListingCard(
+                  crashpad: results.first,
+                  onTap: () => onOpen(results.first),
+                ),
+              ),
+            ],
+          );
+        }
 
-    final firstUrl = imageUrls.first;
-    if (firstUrl.startsWith('http')) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: CachedNetworkImage(
-          imageUrl: firstUrl,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          placeholder: (context, url) => Container(
-            width: size,
-            height: size,
-            color: AppPalette.deepSpace.withValues(alpha: 0.6),
-            child: const Center(child: CircularProgressIndicator()),
-          ),
-          errorWidget: (context, url, error) => Container(
-            width: size,
-            height: size,
-            color: AppPalette.deepSpace.withValues(alpha: 0.6),
-            child: const Icon(Icons.broken_image_outlined),
-          ),
-        ),
-      );
-    }
-
-    try {
-      final bytes = base64Decode(firstUrl);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Image.memory(
-          bytes,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-        ),
-      );
-    } catch (_) {
-      return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: AppPalette.deepSpace.withValues(alpha: 0.6),
-        ),
-        child: const Icon(Icons.image_not_supported_outlined),
-      );
-    }
+        return ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemBuilder: (context, index) {
+            final crashpad = results[index];
+            return CrashpadListingCard(
+              crashpad: crashpad,
+              compact: constraints.maxWidth < AppBreakpoints.tablet,
+              onTap: () => onOpen(crashpad),
+            );
+          },
+          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.lg),
+          itemCount: results.length,
+        );
+      },
+    );
   }
 }
 
-class _EmptyResults extends StatelessWidget {
-  const _EmptyResults();
+class _DesktopResultTable extends StatelessWidget {
+  const _DesktopResultTable({
+    required this.results,
+    required this.onOpen,
+  });
+
+  final List<Crashpad> results;
+  final ValueChanged<Crashpad> onOpen;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return CrashSurface(
+      padding: EdgeInsets.zero,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.travel_explore, size: 48, color: Colors.white.withValues(alpha: 0.45)),
-          const SizedBox(height: 12),
-          Text(
-            'No crashpads found',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try adjusting your search keywords or filters.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppPalette.softSlate,
+        children: results.map((crashpad) {
+          final isLast = crashpad == results.last;
+          return InkWell(
+            onTap: () => onOpen(crashpad),
+            child: Column(
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Row(
+                    children: <Widget>[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        child: CrashpadImage(
+                          imageUrls: crashpad.imageUrls,
+                          height: 74,
+                          width: 96,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.lg),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              crashpad.name,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${crashpad.nearestAirport} - ${crashpad.location}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: AppPalette.textMuted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.lg),
+                      StatusBadge(label: crashpad.bedModel.shortLabel),
+                      const SizedBox(width: AppSpacing.lg),
+                      Text(
+                        '\$${crashpad.price.toStringAsFixed(0)}/night',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(color: AppPalette.blueSoft),
+                      ),
+                    ],
+                  ),
                 ),
-          ),
-        ],
+                if (!isLast) const Divider(height: 1),
+              ],
+            ),
+          );
+        }).toList(),
       ),
     );
   }

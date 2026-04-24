@@ -9,8 +9,7 @@ class QuickLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color accent =
-        isDark ? AppPalette.neonPulse : Colors.blue.shade900;
+    final Color accent = isDark ? AppPalette.neonPulse : Colors.blue.shade900;
     return ListTile(
       onTap: () {
         // Implement your navigation or action here.

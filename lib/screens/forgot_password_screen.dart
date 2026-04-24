@@ -36,7 +36,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     if (!repository.userExists(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('We couldn\'t find an account for that email.')),
+        const SnackBar(
+            content: Text('We couldn\'t find an account for that email.')),
       );
     } else {
       await showActionFeedback(
@@ -85,9 +86,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     const SizedBox(height: 16),
                     Text(
                       'Reset your access code',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -125,7 +127,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               ? const SizedBox(
                                   height: 20,
                                   width: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Text('Send reset link'),
                         ),

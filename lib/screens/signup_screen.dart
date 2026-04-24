@@ -90,7 +90,8 @@ class _SignupScreenState extends State<SignupScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = 'Unexpected error: $error');
-      _showMessage('Unable to create account. Please try again.', isError: true);
+      _showMessage('Unable to create account. Please try again.',
+          isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -103,8 +104,9 @@ class _SignupScreenState extends State<SignupScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor:
-            isError ? AppPalette.danger : AppPalette.aurora.withValues(alpha: 0.9),
+        backgroundColor: isError
+            ? AppPalette.danger
+            : AppPalette.aurora.withValues(alpha: 0.9),
       ),
     );
   }
@@ -182,10 +184,12 @@ class _SignupScreenState extends State<SignupScreen> {
                                           Expanded(
                                             child: DropdownMenu<AppUserType>(
                                               initialSelection: _userType,
-                                              label: const Text('I am registering as'),
+                                              label: const Text(
+                                                  'I am registering as'),
                                               onSelected: (value) {
                                                 if (value == null) return;
-                                                setState(() => _userType = value);
+                                                setState(
+                                                    () => _userType = value);
                                               },
                                               dropdownMenuEntries: const [
                                                 DropdownMenuEntry(
@@ -211,7 +215,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                                 labelText: 'First name',
                                               ),
                                               validator: (value) =>
-                                                  value == null || value.trim().isEmpty
+                                                  value == null ||
+                                                          value.trim().isEmpty
                                                       ? 'First name is required'
                                                       : null,
                                             ),
@@ -224,7 +229,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                                 labelText: 'Last name',
                                               ),
                                               validator: (value) =>
-                                                  value == null || value.trim().isEmpty
+                                                  value == null ||
+                                                          value.trim().isEmpty
                                                       ? 'Last name is required'
                                                       : null,
                                             ),
@@ -236,9 +242,11 @@ class _SignupScreenState extends State<SignupScreen> {
                                         controller: _emailController,
                                         decoration: const InputDecoration(
                                           labelText: 'Email address',
-                                          prefixIcon: Icon(Icons.alternate_email),
+                                          prefixIcon:
+                                              Icon(Icons.alternate_email),
                                         ),
-                                        keyboardType: TextInputType.emailAddress,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
                                         validator: (value) {
                                           if (value == null ||
                                               value.trim().isEmpty ||
@@ -254,17 +262,18 @@ class _SignupScreenState extends State<SignupScreen> {
                                         obscureText: _obscurePassword,
                                         decoration: InputDecoration(
                                           labelText: 'Password',
-                                          prefixIcon:
-                                              const Icon(Icons.password_outlined),
+                                          prefixIcon: const Icon(
+                                              Icons.password_outlined),
                                           suffixIcon: IconButton(
                                             icon: Icon(
                                               _obscurePassword
-                                                  ? Icons.visibility_off_outlined
+                                                  ? Icons
+                                                      .visibility_off_outlined
                                                   : Icons.visibility_outlined,
                                             ),
                                             onPressed: () => setState(
-                                              () =>
-                                                  _obscurePassword = !_obscurePassword,
+                                              () => _obscurePassword =
+                                                  !_obscurePassword,
                                             ),
                                           ),
                                         ),
@@ -286,7 +295,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                                 labelText: 'Country of birth',
                                               ),
                                               validator: (value) =>
-                                                  value == null || value.trim().isEmpty
+                                                  value == null ||
+                                                          value.trim().isEmpty
                                                       ? 'Required'
                                                       : null,
                                             ),
@@ -299,10 +309,12 @@ class _SignupScreenState extends State<SignupScreen> {
                                               onTap: _pickDate,
                                               decoration: const InputDecoration(
                                                 labelText: 'Date of birth',
-                                                suffixIcon: Icon(Icons.event_outlined),
+                                                suffixIcon:
+                                                    Icon(Icons.event_outlined),
                                               ),
                                               validator: (value) =>
-                                                  value == null || value.trim().isEmpty
+                                                  value == null ||
+                                                          value.trim().isEmpty
                                                       ? 'Select your birth date'
                                                       : null,
                                             ),
@@ -317,29 +329,35 @@ class _SignupScreenState extends State<SignupScreen> {
                                               children: [
                                                 Expanded(
                                                   child: TextFormField(
-                                                    controller: _companyController,
-                                                    decoration: const InputDecoration(
-                                                      labelText: 'Airline / company',
+                                                    controller:
+                                                        _companyController,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                      labelText:
+                                                          'Airline / company',
                                                     ),
-                                                    validator: (value) =>
-                                                        value == null ||
-                                                                value.trim().isEmpty
-                                                            ? 'Required for crew access'
-                                                            : null,
+                                                    validator: (value) => value ==
+                                                                null ||
+                                                            value.trim().isEmpty
+                                                        ? 'Required for crew access'
+                                                        : null,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 16),
                                                 Expanded(
                                                   child: TextFormField(
-                                                    controller: _badgeController,
-                                                    decoration: const InputDecoration(
-                                                      labelText: 'Crew badge ID',
+                                                    controller:
+                                                        _badgeController,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                      labelText:
+                                                          'Crew badge ID',
                                                     ),
-                                                    validator: (value) =>
-                                                        value == null ||
-                                                                value.trim().isEmpty
-                                                            ? 'Enter your badge number'
-                                                            : null,
+                                                    validator: (value) => value ==
+                                                                null ||
+                                                            value.trim().isEmpty
+                                                        ? 'Enter your badge number'
+                                                        : null,
                                                   ),
                                                 ),
                                               ],
@@ -352,16 +370,20 @@ class _SignupScreenState extends State<SignupScreen> {
                                         child: TapScale(
                                           enabled: !_isLoading,
                                           child: ElevatedButton(
-                                            onPressed: _isLoading ? null : _handleSignup,
+                                            onPressed: _isLoading
+                                                ? null
+                                                : _handleSignup,
                                             child: _isLoading
                                                 ? const SizedBox(
                                                     height: 20,
                                                     width: 20,
-                                                    child: CircularProgressIndicator(
+                                                    child:
+                                                        CircularProgressIndicator(
                                                       strokeWidth: 2,
                                                     ),
                                                   )
-                                                : const Text('Create my Crashpad account'),
+                                                : const Text(
+                                                    'Create my Crashpad account'),
                                           ),
                                         ),
                                       ),
@@ -373,11 +395,13 @@ class _SignupScreenState extends State<SignupScreen> {
                                             '/login',
                                           );
                                         },
-                                        child: const Text('Already registered? Sign in'),
+                                        child: const Text(
+                                            'Already registered? Sign in'),
                                       ),
                                       if (_errorMessage != null)
                                         Padding(
-                                          padding: const EdgeInsets.only(top: 16),
+                                          padding:
+                                              const EdgeInsets.only(top: 16),
                                           child: Text(
                                             _errorMessage!,
                                             style: const TextStyle(
@@ -437,8 +461,7 @@ class _SignupHero extends StatelessWidget {
     final bool isDark = theme.brightness == Brightness.dark;
     final Color headlineColor =
         isDark ? AppPalette.softWhite : AppPalette.midnight;
-    final Color supportingColor =
-        isDark ? Colors.white70 : Colors.black87;
+    final Color supportingColor = isDark ? Colors.white70 : Colors.black87;
     return Padding(
       padding: const EdgeInsets.only(right: 24),
       child: Column(

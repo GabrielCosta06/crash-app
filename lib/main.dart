@@ -70,7 +70,8 @@ class _MyAppState extends State<MyApp> {
     if (!isAuthenticated && !allowWithoutAuth) {
       return MaterialPageRoute<void>(
         builder: (context) => LoginScreen(
-          onAuthenticated: () => Navigator.of(context).pushReplacementNamed('/home'),
+          onAuthenticated: () =>
+              Navigator.of(context).pushReplacementNamed('/home'),
         ),
         settings: settings,
       );
@@ -127,7 +128,7 @@ class _MyAppState extends State<MyApp> {
         builder: (_, repository, __) => MaterialApp(
           title: 'Crashpad',
           debugShowCheckedModeBanner: false,
-          theme: repository.isDarkTheme ? AppTheme.dark : AppTheme.light,
+          theme: AppTheme.dark,
           initialRoute: _isAuthenticated ? '/home' : '/login',
           onGenerateRoute: _generateRoute,
         ),
@@ -136,7 +137,7 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-/// Hosts the main app destinations behind a minimalist navigation bar.
+/// Hosts the main app destinations behind adaptive mobile/web navigation.
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -176,88 +177,108 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      body: AnimatedSwitcher(
-        duration: _navAnimationDuration,
-        transitionBuilder: (child, animation) {
-          final offsetTween =
-              Tween<Offset>(begin: const Offset(0.05, 0), end: Offset.zero)
-                  .chain(CurveTween(curve: Curves.easeOutCubic));
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: animation.drive(offsetTween),
-              child: child,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useSidebar = constraints.maxWidth >= 900;
+        final page = AnimatedSwitcher(
+          duration: _navAnimationDuration,
+          transitionBuilder: (child, animation) {
+            final offsetTween =
+                Tween<Offset>(begin: const Offset(0.025, 0), end: Offset.zero)
+                    .chain(CurveTween(curve: Curves.easeOutCubic));
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: animation.drive(offsetTween),
+                child: child,
+              ),
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey<int>(_currentIndex),
+            child: _screens[_currentIndex],
+          ),
+        );
+
+        if (useSidebar) {
+          return Scaffold(
+            body: Row(
+              children: [
+                _SidebarNavigation(
+                  currentIndex: _currentIndex,
+                  destinations: _destinations,
+                  onDestinationSelected: _onNavigationTapped,
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: page),
+              ],
             ),
           );
-        },
-        child: KeyedSubtree(
-          key: ValueKey<int>(_currentIndex),
-          child: _screens[_currentIndex],
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final itemWidth = constraints.maxWidth / _destinations.length;
-              const double horizontalInset = 8;
-              const double verticalInset = 4;
-              final highlightLeft =
-                  itemWidth * _currentIndex + horizontalInset / 2;
-              final double highlightWidth = itemWidth - horizontalInset;
-              final theme = Theme.of(context);
-              final isDark = theme.brightness == Brightness.dark;
-              final highlightColor = isDark
-                  ? theme.colorScheme.secondary.withValues(alpha: 0.18)
-                  : theme.colorScheme.primary.withValues(alpha: 0.12);
-              final backgroundColor = theme.bottomNavigationBarTheme.backgroundColor ??
-                  theme.colorScheme.surface;
+        }
 
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(color: backgroundColor),
-                    ),
-                  ),
-                  AnimatedPositioned(
-                    duration: _navAnimationDuration,
-                    curve: Curves.easeOutCubic,
-                    left: highlightLeft,
-                    width: highlightWidth,
-                    top: verticalInset,
-                    bottom: verticalInset,
-                    child: IgnorePointer(
-                      ignoring: true,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: highlightColor,
-                          borderRadius: BorderRadius.circular(24),
+        return Scaffold(
+          extendBody: true,
+          body: page,
+          bottomNavigationBar: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final itemWidth = constraints.maxWidth / _destinations.length;
+                  const horizontalInset = 8.0;
+                  const verticalInset = 4.0;
+                  final highlightLeft =
+                      itemWidth * _currentIndex + horizontalInset / 2;
+                  final highlightWidth = itemWidth - horizontalInset;
+                  final theme = Theme.of(context);
+
+                  return Stack(
+                    children: [
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color:
+                                theme.bottomNavigationBarTheme.backgroundColor,
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  BottomNavigationBar(
-                    currentIndex: _currentIndex,
-                    onTap: _onNavigationTapped,
-                    type: BottomNavigationBarType.fixed,
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    items: List.generate(
-                      _destinations.length,
-                      (index) => _navItem(_destinations[index], index),
-                    ),
-                  ),
-                ],
-              );
-            },
+                      AnimatedPositioned(
+                        duration: _navAnimationDuration,
+                        curve: Curves.easeOutCubic,
+                        left: highlightLeft,
+                        width: highlightWidth,
+                        top: verticalInset,
+                        bottom: verticalInset,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary
+                                  .withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                        ),
+                      ),
+                      BottomNavigationBar(
+                        currentIndex: _currentIndex,
+                        onTap: _onNavigationTapped,
+                        type: BottomNavigationBarType.fixed,
+                        backgroundColor: Colors.transparent,
+                        elevation: 0,
+                        items: List.generate(
+                          _destinations.length,
+                          (index) => _navItem(_destinations[index], index),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -275,6 +296,70 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
       label: destination.label,
+    );
+  }
+}
+
+class _SidebarNavigation extends StatelessWidget {
+  const _SidebarNavigation({
+    required this.currentIndex,
+    required this.destinations,
+    required this.onDestinationSelected,
+  });
+
+  final int currentIndex;
+  final List<_Destination> destinations;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      right: false,
+      child: SizedBox(
+        width: 248,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+              child: Row(
+                children: [
+                  Container(
+                    height: 42,
+                    width: 42,
+                    decoration: BoxDecoration(
+                      gradient: AppGradients.accent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.apartment_rounded),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Crash App',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: NavigationRail(
+                extended: true,
+                selectedIndex: currentIndex,
+                onDestinationSelected: onDestinationSelected,
+                labelType: NavigationRailLabelType.none,
+                destinations: destinations
+                    .map(
+                      (destination) => NavigationRailDestination(
+                        icon: Icon(destination.icon),
+                        label: Text(destination.label),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

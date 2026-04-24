@@ -1,189 +1,278 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-/// Centralised color system ensuring a cohesive minimalist aesthetic.
 class AppPalette {
-  static const Color midnight = Color(0xFF0B1120);
-  static const Color deepSpace = Color(0xFF12192B);
-  static const Color aurora = Color(0xFF4F8DFF);
-  static const Color neonPulse = Color(0xFF3BF4FB);
-  static const Color softSlate = Color(0xFF9FAED1);
-  static const Color softWhite = Color(0xFFF7F9FC);
-  static const Color graphite = Color(0xFF1F2937);
-  static const Color success = Color(0xFF2ECC71);
-  static const Color warning = Color(0xFFFFC107);
-  static const Color danger = Color(0xFFE74C3C);
+  const AppPalette._();
 
-  // Legacy aliases kept for backwards compatibility inside existing widgets.
-  static const Color lightPrimary = aurora;
-  static const Color lightSecondary = neonPulse;
-  static const Color lightSurface = Colors.white;
-  static const Color lightBackground = softWhite;
-  static const Color lightText = graphite;
-  static const Color lightTextSecondary = softSlate;
+  static const Color ink = Color(0xFF05070C);
+  static const Color midnight = Color(0xFF090E1A);
+  static const Color panel = Color(0xFF101827);
+  static const Color panelElevated = Color(0xFF162033);
+  static const Color border = Color(0xFF263247);
+  static const Color borderStrong = Color(0xFF34445F);
+  static const Color blue = Color(0xFF3E8BFF);
+  static const Color blueSoft = Color(0xFF86B7FF);
+  static const Color cyan = Color(0xFF65E4FF);
+  static const Color text = Color(0xFFF7FAFC);
+  static const Color textMuted = Color(0xFF9AA8BD);
+  static const Color textSubtle = Color(0xFF69778C);
+  static const Color success = Color(0xFF3DDC97);
+  static const Color warning = Color(0xFFFFC857);
+  static const Color danger = Color(0xFFFF6B6B);
+
+  // Legacy aliases kept for existing widgets while the app is dark-only.
+  static const Color deepSpace = panel;
+  static const Color aurora = blue;
+  static const Color neonPulse = cyan;
+  static const Color softSlate = textMuted;
+  static const Color softWhite = text;
+  static const Color graphite = panelElevated;
+  static const Color lightPrimary = blue;
+  static const Color lightSecondary = cyan;
+  static const Color lightSurface = panel;
+  static const Color lightBackground = midnight;
+  static const Color lightText = text;
+  static const Color lightTextSecondary = textMuted;
 }
 
-/// Builds light and dark themes used across the application.
+class AppSpacing {
+  const AppSpacing._();
+
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 20;
+  static const double xxl = 24;
+  static const double xxxl = 32;
+  static const double section = 40;
+}
+
+class AppRadius {
+  const AppRadius._();
+
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 20;
+  static const double xxl = 28;
+}
+
+class AppBreakpoints {
+  const AppBreakpoints._();
+
+  static const double tablet = 720;
+  static const double desktop = 1040;
+  static const double wide = 1280;
+}
+
+class AppGradients {
+  const AppGradients._();
+
+  static const LinearGradient hero = LinearGradient(
+    colors: <Color>[
+      Color(0xFF101A2C),
+      Color(0xFF0A1120),
+      Color(0xFF05070C),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static LinearGradient accent = LinearGradient(
+    colors: <Color>[
+      AppPalette.blue.withValues(alpha: 0.95),
+      AppPalette.cyan.withValues(alpha: 0.88),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+}
+
 class AppTheme {
   static ThemeData get dark {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppPalette.aurora,
+      seedColor: AppPalette.blue,
       brightness: Brightness.dark,
-      secondary: AppPalette.neonPulse,
-      tertiary: AppPalette.softSlate,
+      surface: AppPalette.panel,
+      secondary: AppPalette.cyan,
     );
-
-    return ThemeData(
+    final baseTheme = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: colorScheme,
-      primaryColor: AppPalette.aurora,
-      scaffoldBackgroundColor: AppPalette.midnight,
-      visualDensity: VisualDensity.adaptivePlatformDensity,
-      pageTransitionsTheme: _pageTransitions,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        foregroundColor: Colors.white,
-      ),
-      cardTheme: CardThemeData(
-        color: AppPalette.deepSpace,
-        margin: EdgeInsets.zero,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
+    );
+
+    final textTheme = GoogleFonts.interTextTheme(baseTheme.textTheme).apply(
+      bodyColor: AppPalette.text,
+      displayColor: AppPalette.text,
+    );
+
+    return baseTheme.copyWith(
+      scaffoldBackgroundColor: AppPalette.ink,
+      primaryColor: AppPalette.blue,
+      textTheme: textTheme.copyWith(
+        displaySmall: textTheme.displaySmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+          height: 1.05,
+        ),
+        headlineMedium: textTheme.headlineMedium?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+          height: 1.1,
+        ),
+        headlineSmall: textTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+        ),
+        titleLarge: textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+        ),
+        titleMedium: textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+        ),
+        bodyLarge: textTheme.bodyLarge?.copyWith(
+          height: 1.5,
+          color: AppPalette.text.withValues(alpha: 0.9),
+        ),
+        bodyMedium: textTheme.bodyMedium?.copyWith(
+          height: 1.5,
+          color: AppPalette.text.withValues(alpha: 0.84),
+        ),
+        bodySmall: textTheme.bodySmall?.copyWith(
+          height: 1.45,
+          color: AppPalette.textMuted,
+        ),
+        labelLarge: textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
         ),
       ),
-      listTileTheme: const ListTileThemeData(
-        iconColor: AppPalette.softSlate,
-        textColor: Colors.white,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppPalette.text,
+        elevation: 0,
+        centerTitle: false,
+      ),
+      cardTheme: CardThemeData(
+        color: AppPalette.panel,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          side: const BorderSide(color: AppPalette.border),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: AppPalette.border.withValues(alpha: 0.7),
+        thickness: 1,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppPalette.blue,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppPalette.text,
+          minimumSize: const Size(48, 48),
+          side: const BorderSide(color: AppPalette.borderStrong),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppPalette.blueSoft,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppPalette.panelElevated.withValues(alpha: 0.72),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.lg,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppPalette.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppPalette.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppPalette.blue, width: 1.4),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppPalette.danger),
+        ),
+        labelStyle: const TextStyle(color: AppPalette.textMuted),
+        hintStyle: const TextStyle(color: AppPalette.textSubtle),
+        prefixIconColor: AppPalette.textMuted,
+        suffixIconColor: AppPalette.textMuted,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppPalette.panelElevated,
+        selectedColor: AppPalette.blue.withValues(alpha: 0.2),
+        disabledColor: AppPalette.panel,
+        labelStyle: const TextStyle(color: AppPalette.textMuted),
+        secondaryLabelStyle: const TextStyle(color: AppPalette.text),
+        side: const BorderSide(color: AppPalette.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppPalette.deepSpace,
-        selectedItemColor: AppPalette.neonPulse,
-        unselectedItemColor: AppPalette.softSlate,
+        backgroundColor: AppPalette.panel,
+        selectedItemColor: AppPalette.text,
+        unselectedItemColor: AppPalette.textSubtle,
         showSelectedLabels: true,
         showUnselectedLabels: true,
         elevation: 0,
       ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppPalette.aurora,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: AppPalette.panel.withValues(alpha: 0.82),
+        selectedIconTheme: const IconThemeData(color: AppPalette.text),
+        unselectedIconTheme: const IconThemeData(color: AppPalette.textSubtle),
+        selectedLabelTextStyle: const TextStyle(
+          color: AppPalette.text,
+          fontWeight: FontWeight.w700,
         ),
+        unselectedLabelTextStyle: const TextStyle(color: AppPalette.textSubtle),
+        indicatorColor: AppPalette.blue.withValues(alpha: 0.18),
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: AppPalette.deepSpace.withValues(alpha: 0.82),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: AppPalette.neonPulse, width: 1.3),
-        ),
-        labelStyle: const TextStyle(color: AppPalette.softSlate),
-        hintStyle: const TextStyle(color: AppPalette.softSlate),
-      ),
-      snackBarTheme: const SnackBarThemeData(
-        backgroundColor: AppPalette.deepSpace,
-        contentTextStyle: TextStyle(color: Colors.white),
-        behavior: SnackBarBehavior.floating,
-        elevation: 0,
-      ),
-      textTheme: _textTheme(
-        onSurface: colorScheme.onSurface,
-        isDark: true,
-      ),
-    );
-  }
-
-  static ThemeData get light {
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppPalette.aurora,
-      brightness: Brightness.light,
-      secondary: AppPalette.neonPulse,
-      tertiary: AppPalette.softSlate,
-    );
-
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.light,
-      colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppPalette.softWhite,
-      visualDensity: VisualDensity.adaptivePlatformDensity,
-      pageTransitionsTheme: _pageTransitions,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        foregroundColor: AppPalette.graphite,
-      ),
-      cardTheme: CardThemeData(
-        color: Colors.white,
-        margin: EdgeInsets.zero,
-        elevation: 2,
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppPalette.panel,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          side: const BorderSide(color: AppPalette.border),
         ),
       ),
-      listTileTheme: const ListTileThemeData(
-        iconColor: AppPalette.aurora,
-        textColor: AppPalette.graphite,
-      ),
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: Colors.white,
-        selectedItemColor: colorScheme.primary,
-        unselectedItemColor: AppPalette.softSlate,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        elevation: 0,
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colorScheme.primary,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: AppPalette.softSlate.withValues(alpha: 0.3)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: colorScheme.primary, width: 1.2),
-        ),
-        labelStyle: const TextStyle(color: AppPalette.softSlate),
-        hintStyle: const TextStyle(color: AppPalette.softSlate),
-      ),
-      snackBarTheme: const SnackBarThemeData(
-        backgroundColor: AppPalette.graphite,
-        contentTextStyle: TextStyle(color: Colors.white),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppPalette.panelElevated,
+        contentTextStyle: const TextStyle(color: AppPalette.text),
         behavior: SnackBarBehavior.floating,
-        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
       ),
-      textTheme: _textTheme(
-        onSurface: AppPalette.graphite,
-        isDark: false,
-      ),
-    );
-  }
-
-  static PageTransitionsTheme get _pageTransitions => const PageTransitionsTheme(
+      pageTransitionsTheme: const PageTransitionsTheme(
         builders: <TargetPlatform, PageTransitionsBuilder>{
           TargetPlatform.android: ZoomPageTransitionsBuilder(),
           TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
@@ -192,36 +281,10 @@ class AppTheme {
           TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
           TargetPlatform.windows: ZoomPageTransitionsBuilder(),
         },
-      );
-
-  /// Builds text styles that respect the active brightness and palette.
-  static TextTheme _textTheme({
-    required Color onSurface,
-    required bool isDark,
-  }) {
-    final base =
-        ThemeData(brightness: isDark ? Brightness.dark : Brightness.light)
-            .textTheme;
-    return base.copyWith(
-      displaySmall: base.displaySmall?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: onSurface,
-      ),
-      headlineMedium: base.headlineMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: onSurface,
-      ),
-      titleLarge: base.titleLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: onSurface,
-      ),
-      bodyMedium: base.bodyMedium?.copyWith(
-        height: 1.5,
-        color: onSurface.withValues(alpha: 0.82),
-      ),
-      bodySmall: base.bodySmall?.copyWith(
-        color: onSurface.withValues(alpha: 0.68),
       ),
     );
   }
+
+  /// Compatibility getter. Crash App intentionally ships dark-mode only.
+  static ThemeData get light => dark;
 }

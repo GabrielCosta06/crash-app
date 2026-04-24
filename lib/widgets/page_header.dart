@@ -42,8 +42,9 @@ class PageHeader extends StatelessWidget implements PreferredSizeWidget {
     final textColor = isLight ? AppPalette.lightText : Colors.white;
     final subTextColor =
         isLight ? AppPalette.lightTextSecondary : AppPalette.softSlate;
-    final accentBackground = (isLight ? AppPalette.aurora : AppPalette.neonPulse)
-        .withValues(alpha: 0.16);
+    final accentBackground =
+        (isLight ? AppPalette.aurora : AppPalette.neonPulse)
+            .withValues(alpha: 0.16);
 
     return Material(
       color: Colors.transparent,
@@ -51,7 +52,8 @@ class PageHeader extends StatelessWidget implements PreferredSizeWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: gradient,
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+          borderRadius:
+              const BorderRadius.vertical(bottom: Radius.circular(28)),
           boxShadow: isLight
               ? <BoxShadow>[
                   BoxShadow(
@@ -93,7 +95,8 @@ class PageHeader extends StatelessWidget implements PreferredSizeWidget {
                 fontWeight: FontWeight.w800,
                 color: textColor,
               );
-              final TextStyle? subtitleStyle = theme.textTheme.bodyMedium?.copyWith(
+              final TextStyle? subtitleStyle =
+                  theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w500,
                 color: subTextColor,
                 fontSize: tight
@@ -117,7 +120,8 @@ class PageHeader extends StatelessWidget implements PreferredSizeWidget {
                             color: accentBackground,
                             borderRadius: BorderRadius.circular(18),
                           ),
-                          child: Icon(icon, size: iconSize, color: AppPalette.neonPulse),
+                          child: Icon(icon,
+                              size: iconSize, color: AppPalette.neonPulse),
                         ),
                         SizedBox(height: primaryGap),
                         Text(
