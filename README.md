@@ -1,10 +1,10 @@
-# Crashpad App
+# Crash App
 
 A Flutter-based marketplace for airline crew crashpads, featuring role-based access for guests and owners, secure booking workflows, and optimized UI for crew rest management.
 
 ## Project Overview
 
-Crashpad is designed to solve the unique housing needs of airline crew members. It allows owners to list properties with specific bed models (Hot Bed vs. Cold Bed) and enables crew members to find, book, and pay for stays near their assigned airports.
+Crash App is designed to solve the unique housing needs of airline crew members. It allows owners to list properties with specific bed models (Hot Bed vs. Cold Bed) and enables crew members to find, book, and pay for stays near their assigned airports.
 
 ## Recent UI/UX Improvements
 
