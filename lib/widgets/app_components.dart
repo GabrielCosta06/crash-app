@@ -320,11 +320,11 @@ class PaymentSummaryCard extends StatelessWidget {
   String _statusLabel(PaymentStatus status) {
     switch (status) {
       case PaymentStatus.draft:
-        return 'Mock draft';
+        return 'Quote';
       case PaymentStatus.authorized:
-        return 'Mock authorized';
+        return 'Authorized';
       case PaymentStatus.paid:
-        return 'Mock paid';
+        return 'Paid';
       case PaymentStatus.failed:
         return 'Failed';
       case PaymentStatus.refunded:

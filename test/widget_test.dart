@@ -43,6 +43,6 @@ void main() {
       find.text('Book trusted crashpads built for crew rest.'),
       findsOneWidget,
     );
-    expect(find.text('Owner dashboard'), findsWidgets);
+    expect(find.text('Management dashboard'), findsWidgets);
   });
 }

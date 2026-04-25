@@ -160,4 +160,132 @@ void main() {
     );
     expect(repository.bookings.single.status, BookingStatus.completed);
   });
+
+  test('owner can edit all listing details through repository update',
+      () async {
+    final repository = AppRepository();
+
+    await repository.logIn('owner@crashpads.com', 'owner123');
+    final owner = repository.currentUser!;
+    final original = (await repository.fetchOwnerCrashpads(owner.email)).first;
+    final updated = await repository.updateCrashpad(
+      original.copyWith(
+        name: 'Updated Management Loft',
+        description: 'Updated listing details for every guest-facing field.',
+        location: '99 Updated Way, Chicago, IL, USA',
+        nearestAirport: 'ORD',
+        bedType: CrashpadBedModel.flexible.label,
+        price: 155,
+        imageUrls: const <String>['image-a', 'image-b'],
+        rooms: const <CrashpadRoom>[
+          CrashpadRoom(
+            id: 'updated-room',
+            name: 'Updated Room',
+            bedModel: CrashpadBedModel.hot,
+            beds: <CrashpadBed>[
+              CrashpadBed(id: 'u1', label: 'Bed 1'),
+              CrashpadBed(id: 'u2', label: 'Bed 2'),
+            ],
+            activeGuests: 1,
+            hotCapacity: 3,
+            storageNote: 'Updated storage note.',
+          ),
+        ],
+        amenities: const <String>['Wi-Fi', 'Parking'],
+        houseRules: const <String>['Updated quiet hours'],
+        services: const <CrashpadService>[
+          CrashpadService(
+            id: 'updated-service',
+            name: 'Updated service',
+            description: 'Updated service description.',
+            price: 24,
+          ),
+        ],
+        checkoutCharges: const <CrashpadCheckoutCharge>[
+          CrashpadCheckoutCharge(
+            id: 'updated-charge',
+            name: 'Updated charge',
+            description: 'Updated checkout charge.',
+            amount: 44,
+            type: ChargeType.custom,
+          ),
+        ],
+        minimumStayNights: 6,
+        distanceToAirportMiles: 2.7,
+      ),
+    );
+
+    expect(updated.name, 'Updated Management Loft');
+    expect(updated.location, '99 Updated Way, Chicago, IL, USA');
+    expect(updated.nearestAirport, 'ORD');
+    expect(updated.price, 155);
+    expect(updated.imageUrls, const <String>['image-a', 'image-b']);
+    expect(updated.rooms.single.storageNote, 'Updated storage note.');
+    expect(updated.amenities, const <String>['Wi-Fi', 'Parking']);
+    expect(updated.houseRules, const <String>['Updated quiet hours']);
+    expect(updated.services.single.name, 'Updated service');
+    expect(updated.checkoutCharges.single.amount, 44);
+    expect(updated.minimumStayNights, 6);
+    expect(updated.distanceToAirportMiles, 2.7);
+  });
+
+  test('guest can only review after completing a confirmed paid stay',
+      () async {
+    final repository = AppRepository();
+    const paymentService = PaymentService();
+    final crashpad = repository.crashpads.first;
+    final initialReviewCount =
+        (await repository.fetchReviews(crashpad.id)).length;
+
+    await repository.logIn('crew@crashpads.com', 'flysafe');
+    final guest = repository.currentUser!;
+
+    await expectLater(
+      repository.addReview(
+        crashpadId: crashpad.id,
+        employeeName: guest.displayName,
+        comment: 'Trying to review before a completed stay.',
+        rating: 4,
+      ),
+      throwsA(isA<AuthException>()),
+    );
+
+    final draft = BookingDraft(
+      crashpadId: crashpad.id,
+      guestId: guest.id,
+      nightlyRate: crashpad.price,
+      nights: 3,
+      guestCount: 1,
+    );
+    final booking = await repository.createBooking(
+      crashpad: crashpad,
+      draft: draft,
+      paymentSummary: paymentService.buildSummary(draft),
+    );
+
+    await expectLater(
+      repository.addReview(
+        crashpadId: crashpad.id,
+        employeeName: guest.displayName,
+        comment: 'Trying to review before completion.',
+        rating: 4,
+      ),
+      throwsA(isA<AuthException>()),
+    );
+
+    await repository.updateBookingStatus(
+      bookingId: booking.id,
+      status: BookingStatus.completed,
+    );
+    await repository.addReview(
+      crashpadId: crashpad.id,
+      employeeName: guest.displayName,
+      comment: 'Completed stay matched the listing and checkout was clear.',
+      rating: 4.5,
+    );
+
+    final reviews = await repository.fetchReviews(crashpad.id);
+    expect(reviews, hasLength(initialReviewCount + 1));
+    expect(reviews.last.employeeName, guest.displayName);
+  });
 }

@@ -9,9 +9,10 @@ import '../widgets/app_components.dart';
 import '../widgets/crashpad_listing_card.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.onUpdateIndex});
+  const HomeScreen({super.key, this.onUpdateIndex, this.managementIndex});
 
   final ValueChanged<int>? onUpdateIndex;
+  final int? managementIndex;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -80,7 +81,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   _HeroSearch(
                     controller: _searchController,
                     onChanged: (value) => setState(() => _searchQuery = value),
-                    onOwnerTap: () => widget.onUpdateIndex?.call(2),
+                    onManagementTap: widget.managementIndex == null
+                        ? null
+                        : () => widget.onUpdateIndex?.call(
+                              widget.managementIndex!,
+                            ),
                     listingCount: crashpads.length,
                     openBeds: totalOpenBeds,
                   ),
@@ -130,14 +135,14 @@ class _HeroSearch extends StatelessWidget {
   const _HeroSearch({
     required this.controller,
     required this.onChanged,
-    required this.onOwnerTap,
+    this.onManagementTap,
     required this.listingCount,
     required this.openBeds,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
-  final VoidCallback onOwnerTap;
+  final VoidCallback? onManagementTap;
   final int listingCount;
   final int openBeds;
 
@@ -191,11 +196,12 @@ class _HeroSearch extends StatelessWidget {
                     icon: const Icon(Icons.calendar_month_outlined),
                     label: const Text('Start booking'),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: onOwnerTap,
-                    icon: const Icon(Icons.dashboard_customize_outlined),
-                    label: const Text('Owner dashboard'),
-                  ),
+                  if (onManagementTap != null)
+                    OutlinedButton.icon(
+                      onPressed: onManagementTap,
+                      icon: const Icon(Icons.dashboard_customize_outlined),
+                      label: const Text('Management dashboard'),
+                    ),
                 ],
               ),
             ],

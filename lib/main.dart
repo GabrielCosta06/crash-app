@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'data/app_repository.dart';
+import 'models/app_user.dart';
+import 'screens/checkout_screen.dart';
 import 'models/crashpad.dart';
 import 'screens/account_screen.dart';
 import 'screens/create_listing.dart';
@@ -61,6 +63,15 @@ class _MyAppState extends State<MyApp> {
   bool _isPublicRoute(String? name) =>
       name == '/login' || name == '/signup' || name == '/forgot-password';
 
+  bool _isManagementRoute(String destination) =>
+      destination == '/management' || destination == '/owner';
+
+  bool _isOwnerOnlyRoute(String destination) =>
+      _isManagementRoute(destination) ||
+      destination == '/create_listing' ||
+      destination == '/delete_listings' ||
+      destination == '/edit_listing';
+
   /// Handles route creation while respecting the current auth state.
   Route<dynamic> _generateRoute(RouteSettings settings) {
     final destination = settings.name ?? '/login';
@@ -74,6 +85,15 @@ class _MyAppState extends State<MyApp> {
               Navigator.of(context).pushReplacementNamed('/home'),
         ),
         settings: settings,
+      );
+    }
+
+    if (isAuthenticated &&
+        _isOwnerOnlyRoute(destination) &&
+        _repository.currentUser?.userType != AppUserType.owner) {
+      return MaterialPageRoute<void>(
+        builder: (context) => const MainScreen(),
+        settings: const RouteSettings(name: '/home'),
       );
     }
 
@@ -91,6 +111,7 @@ class _MyAppState extends State<MyApp> {
       case '/home':
         builder = (context) => const MainScreen();
         break;
+      case '/management':
       case '/owner':
         builder = (context) => const OwnerDashboardScreen();
         break;
@@ -106,6 +127,14 @@ class _MyAppState extends State<MyApp> {
       case '/owner-details':
         final crashpad = settings.arguments as Crashpad;
         builder = (context) => OwnerDetailsScreen(crashpad: crashpad);
+        break;
+      case '/edit_listing':
+        final crashpad = settings.arguments as Crashpad;
+        builder = (context) => CreateListingScreen(crashpad: crashpad);
+        break;
+      case '/checkout':
+        final arguments = settings.arguments as CheckoutArguments;
+        builder = (context) => CheckoutScreen(arguments: arguments);
         break;
       case '/subscribe':
         builder = (context) => const SubscriptionScreen();
@@ -146,26 +175,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  static const List<_Destination> _destinations = <_Destination>[
-    _Destination(icon: Icons.dashboard_customize_outlined, label: 'Home'),
-    _Destination(icon: Icons.search_rounded, label: 'Find'),
-    _Destination(icon: Icons.analytics_outlined, label: 'Owner'),
-    _Destination(icon: Icons.person_outline, label: 'Account'),
-  ];
-
   int _currentIndex = 0;
-  late final List<Widget> _screens;
-
-  @override
-  void initState() {
-    super.initState();
-    _screens = <Widget>[
-      HomeScreen(onUpdateIndex: _updateIndex),
-      const FindScreen(),
-      const OwnerDashboardScreen(),
-      const AccountScreen(),
-    ];
-  }
 
   /// Updates the selected destination and triggers the animated swap.
   void _updateIndex(int index) {
@@ -177,6 +187,36 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final repository = context.watch<AppRepository>();
+    final canManage = repository.currentUser?.userType == AppUserType.owner;
+    final destinations = <_Destination>[
+      const _Destination(
+          icon: Icons.dashboard_customize_outlined, label: 'Home'),
+      const _Destination(icon: Icons.search_rounded, label: 'Find'),
+      if (canManage)
+        const _Destination(
+          icon: Icons.analytics_outlined,
+          label: 'Management',
+        ),
+      const _Destination(icon: Icons.person_outline, label: 'Account'),
+    ];
+    final managementIndex = canManage ? 2 : null;
+    final screens = <Widget>[
+      HomeScreen(
+        onUpdateIndex: _updateIndex,
+        managementIndex: managementIndex,
+      ),
+      const FindScreen(),
+      if (canManage) const OwnerDashboardScreen(),
+      const AccountScreen(),
+    ];
+    final safeIndex = _currentIndex.clamp(0, screens.length - 1).toInt();
+    if (safeIndex != _currentIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _currentIndex = safeIndex);
+      });
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final useSidebar = constraints.maxWidth >= 900;
@@ -195,8 +235,8 @@ class _MainScreenState extends State<MainScreen> {
             );
           },
           child: KeyedSubtree(
-            key: ValueKey<int>(_currentIndex),
-            child: _screens[_currentIndex],
+            key: ValueKey<int>(safeIndex),
+            child: screens[safeIndex],
           ),
         );
 
@@ -205,8 +245,8 @@ class _MainScreenState extends State<MainScreen> {
             body: Row(
               children: [
                 _SidebarNavigation(
-                  currentIndex: _currentIndex,
-                  destinations: _destinations,
+                  currentIndex: safeIndex,
+                  destinations: destinations,
                   onDestinationSelected: _onNavigationTapped,
                 ),
                 const VerticalDivider(width: 1),
@@ -225,11 +265,11 @@ class _MainScreenState extends State<MainScreen> {
               borderRadius: BorderRadius.circular(22),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final itemWidth = constraints.maxWidth / _destinations.length;
+                  final itemWidth = constraints.maxWidth / destinations.length;
                   const horizontalInset = 8.0;
                   const verticalInset = 4.0;
                   final highlightLeft =
-                      itemWidth * _currentIndex + horizontalInset / 2;
+                      itemWidth * safeIndex + horizontalInset / 2;
                   final highlightWidth = itemWidth - horizontalInset;
                   final theme = Theme.of(context);
 
@@ -261,14 +301,15 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                       ),
                       BottomNavigationBar(
-                        currentIndex: _currentIndex,
+                        currentIndex: safeIndex,
                         onTap: _onNavigationTapped,
                         type: BottomNavigationBarType.fixed,
                         backgroundColor: Colors.transparent,
                         elevation: 0,
                         items: List.generate(
-                          _destinations.length,
-                          (index) => _navItem(_destinations[index], index),
+                          destinations.length,
+                          (index) =>
+                              _navItem(destinations[index], index, safeIndex),
                         ),
                       ),
                     ],
@@ -283,8 +324,12 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   /// Builds an animated navigation item that subtly scales when selected.
-  BottomNavigationBarItem _navItem(_Destination destination, int index) {
-    final isSelected = index == _currentIndex;
+  BottomNavigationBarItem _navItem(
+    _Destination destination,
+    int index,
+    int selectedIndex,
+  ) {
+    final isSelected = index == selectedIndex;
     return BottomNavigationBarItem(
       icon: AnimatedScale(
         duration: const Duration(milliseconds: 200),

@@ -142,6 +142,13 @@ class AppRepository extends ChangeNotifier {
         .toList();
   }
 
+  Crashpad? findCrashpadById(String crashpadId) {
+    for (final crashpad in _crashpads) {
+      if (crashpad.id == crashpadId) return crashpad;
+    }
+    return null;
+  }
+
   /// Creates a new crashpad owned by the authenticated owner.
   Future<void> addCrashpad({
     required String name,
@@ -202,6 +209,29 @@ class AppRepository extends ChangeNotifier {
       _reviewsByCrashpad.remove(id);
     }
     notifyListeners();
+  }
+
+  Future<Crashpad> updateCrashpad(Crashpad updatedCrashpad) async {
+    final owner = _currentUser;
+    if (owner == null || !owner.isOwner) {
+      throw AuthException('Only authenticated owners can edit listings.');
+    }
+    final index = _crashpads.indexWhere(
+      (crashpad) => crashpad.id == updatedCrashpad.id,
+    );
+    if (index == -1) {
+      throw StateError('Listing not found.');
+    }
+    final existing = _crashpads[index];
+    if (existing.owner.contact?.toLowerCase() != owner.email.toLowerCase()) {
+      throw AuthException('You can only edit listings you own.');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    _crashpads[index] = updatedCrashpad.copyWith(
+      owner: Owner(name: owner.displayName, contact: owner.email),
+    );
+    notifyListeners();
+    return _crashpads[index];
   }
 
   Future<BookingRecord> createBooking({
@@ -269,15 +299,93 @@ class AppRepository extends ChangeNotifier {
     required String comment,
     required double rating,
   }) async {
+    final guest = _currentUser;
+    if (guest == null || !guest.isEmployee) {
+      throw AuthException('Only authenticated guests can write reviews.');
+    }
+    if (!hasCompletedStayForReview(
+      crashpadId: crashpadId,
+      guestEmail: guest.email,
+    )) {
+      throw AuthException(
+        'You can review this crashpad after completing a confirmed stay.',
+      );
+    }
     await Future<void>.delayed(const Duration(milliseconds: 250));
     final review = Review(
-      employeeName: employeeName,
+      employeeName: guest.displayName,
       comment: comment,
       rating: rating,
       createdAt: DateTime.now(),
     );
     _reviewsByCrashpad.putIfAbsent(crashpadId, () => []).add(review);
     notifyListeners();
+  }
+
+  bool hasCompletedStayForReview({
+    required String crashpadId,
+    required String guestEmail,
+  }) {
+    return _bookings.any(
+      (booking) =>
+          booking.crashpadId == crashpadId &&
+          booking.guestEmail.toLowerCase() == guestEmail.toLowerCase() &&
+          booking.status == BookingStatus.completed &&
+          booking.paymentSummary.status == PaymentStatus.paid,
+    );
+  }
+
+  List<ReviewWithCrashpad> reviewsByEmployeeName(String employeeName) {
+    final normalizedName = employeeName.trim().toLowerCase();
+    final records = <ReviewWithCrashpad>[];
+    for (final entry in _reviewsByCrashpad.entries) {
+      final crashpad = findCrashpadById(entry.key);
+      if (crashpad == null) continue;
+      for (final review in entry.value) {
+        if (review.employeeName.toLowerCase() == normalizedName) {
+          records.add(
+            ReviewWithCrashpad(
+              crashpadId: crashpad.id,
+              crashpadName: crashpad.name,
+              review: review,
+            ),
+          );
+        }
+      }
+    }
+    records.sort(
+      (a, b) => b.review.createdAt.compareTo(a.review.createdAt),
+    );
+    return List.unmodifiable(records);
+  }
+
+  List<ReviewWithCrashpad> reviewsForOwner(String ownerEmail) {
+    final ownedIds = _crashpads
+        .where(
+          (crashpad) =>
+              crashpad.owner.contact?.toLowerCase() == ownerEmail.toLowerCase(),
+        )
+        .map((crashpad) => crashpad.id)
+        .toSet();
+    final records = <ReviewWithCrashpad>[];
+    for (final entry in _reviewsByCrashpad.entries) {
+      if (!ownedIds.contains(entry.key)) continue;
+      final crashpad = findCrashpadById(entry.key);
+      if (crashpad == null) continue;
+      records.addAll(
+        entry.value.map(
+          (review) => ReviewWithCrashpad(
+            crashpadId: crashpad.id,
+            crashpadName: crashpad.name,
+            review: review,
+          ),
+        ),
+      );
+    }
+    records.sort(
+      (a, b) => b.review.createdAt.compareTo(a.review.createdAt),
+    );
+    return List.unmodifiable(records);
   }
 
   /// Marks the active user as subscribed to premium features.
@@ -309,6 +417,45 @@ class AppRepository extends ChangeNotifier {
     }
     _currentUser = updated;
     notifyListeners();
+  }
+
+  Future<AppUser> updateCurrentUserProfile({
+    required String firstName,
+    required String lastName,
+    required String countryOfBirth,
+    required DateTime dateOfBirth,
+    String? company,
+    String? badgeNumber,
+  }) async {
+    final current = _currentUser;
+    if (current == null) {
+      throw AuthException('You must be logged in to update your profile.');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    final updated = current.copyWith(
+      firstName: firstName,
+      lastName: lastName,
+      countryOfBirth: countryOfBirth,
+      dateOfBirth: dateOfBirth,
+      company: company,
+      badgeNumber: badgeNumber,
+    );
+    final index = _users.indexWhere((user) => user.id == current.id);
+    if (index != -1) {
+      _users[index] = updated;
+    }
+    _currentUser = updated;
+    for (var i = 0; i < _crashpads.length; i += 1) {
+      final crashpad = _crashpads[i];
+      if (crashpad.owner.contact?.toLowerCase() ==
+          updated.email.toLowerCase()) {
+        _crashpads[i] = crashpad.copyWith(
+          owner: Owner(name: updated.displayName, contact: updated.email),
+        );
+      }
+    }
+    notifyListeners();
+    return updated;
   }
 
   double calculateAverageRating(String crashpadId) {

@@ -47,6 +47,12 @@ class AppUser {
           .toUpperCase();
 
   AppUser copyWith({
+    String? firstName,
+    String? lastName,
+    String? countryOfBirth,
+    DateTime? dateOfBirth,
+    String? company,
+    String? badgeNumber,
     bool? isSubscribed,
     String? avatarBase64,
   }) {
@@ -54,13 +60,13 @@ class AppUser {
       id: id,
       email: email,
       password: password,
-      firstName: firstName,
-      lastName: lastName,
-      countryOfBirth: countryOfBirth,
-      dateOfBirth: dateOfBirth,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      countryOfBirth: countryOfBirth ?? this.countryOfBirth,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       userType: userType,
-      company: company,
-      badgeNumber: badgeNumber,
+      company: company ?? this.company,
+      badgeNumber: badgeNumber ?? this.badgeNumber,
       avatarBase64: avatarBase64 ?? this.avatarBase64,
       isSubscribed: isSubscribed ?? this.isSubscribed,
     );

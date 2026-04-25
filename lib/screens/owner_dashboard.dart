@@ -20,6 +20,7 @@ class OwnerDashboardScreen extends StatefulWidget {
 
 class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   late Future<List<Crashpad>> _listingsFuture;
+  String? _updatingBookingId;
 
   @override
   void initState() {
@@ -54,10 +55,26 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     BookingRecord booking,
     BookingStatus status,
   ) async {
-    await context.read<AppRepository>().updateBookingStatus(
-          bookingId: booking.id,
-          status: status,
-        );
+    setState(() => _updatingBookingId = booking.id);
+    try {
+      await context.read<AppRepository>().updateBookingStatus(
+            bookingId: booking.id,
+            status: status,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Stay moved to ${status.label}.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update stay: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingBookingId = null);
+      }
+    }
   }
 
   @override
@@ -81,8 +98,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
               return Center(
                 child: EmptyStatePanel(
                   icon: Icons.error_outline,
-                  title: 'Dashboard unavailable',
-                  message: 'The owner dashboard could not be loaded.',
+                  title: 'Management unavailable',
+                  message: 'The management dashboard could not be loaded.',
                   action: ElevatedButton(
                     onPressed: _refresh,
                     child: const Text('Retry'),
@@ -143,6 +160,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                       _BookingWorkflowPanel(
                         bookings: ownerBookings,
                         onSetStatus: _setBookingStatus,
+                        updatingBookingId: _updatingBookingId,
                       ),
                       const SizedBox(height: AppSpacing.xxxl),
                       _WorkflowPanel(
@@ -189,7 +207,7 @@ class _OwnerHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               const StatusBadge(
-                label: 'Owner command center',
+                label: 'Management command center',
                 icon: Icons.dashboard_customize_outlined,
                 color: AppPalette.cyan,
               ),
@@ -546,9 +564,11 @@ class _BookingWorkflowPanel extends StatelessWidget {
   const _BookingWorkflowPanel({
     required this.bookings,
     required this.onSetStatus,
+    required this.updatingBookingId,
   });
 
   final List<BookingRecord> bookings;
+  final String? updatingBookingId;
   final Future<void> Function(BookingRecord booking, BookingStatus status)
       onSetStatus;
 
@@ -560,7 +580,7 @@ class _BookingWorkflowPanel extends StatelessWidget {
         const SectionHeading(
           title: 'Guest stays',
           subtitle:
-              'Bookings created by guests after mock payment capture. Owners can move stays through the active workflow.',
+              'Bookings created by guests after payment capture. Management can move stays through the active workflow.',
         ),
         const SizedBox(height: AppSpacing.lg),
         if (bookings.isEmpty)
@@ -568,7 +588,7 @@ class _BookingWorkflowPanel extends StatelessWidget {
             icon: Icons.event_note_outlined,
             title: 'No guest bookings yet',
             message:
-                'Confirmed guest bookings will appear here after mock payment.',
+                'Confirmed guest bookings will appear here after checkout.',
           )
         else
           CrashSurface(
@@ -581,6 +601,7 @@ class _BookingWorkflowPanel extends StatelessWidget {
                     _BookingWorkflowRow(
                       booking: booking,
                       onSetStatus: onSetStatus,
+                      isUpdating: updatingBookingId == booking.id,
                     ),
                     if (!isLast) const Divider(height: 1),
                   ],
@@ -597,9 +618,11 @@ class _BookingWorkflowRow extends StatelessWidget {
   const _BookingWorkflowRow({
     required this.booking,
     required this.onSetStatus,
+    required this.isUpdating,
   });
 
   final BookingRecord booking;
+  final bool isUpdating;
   final Future<void> Function(BookingRecord booking, BookingStatus status)
       onSetStatus;
 
@@ -648,9 +671,17 @@ class _BookingWorkflowRow extends StatelessWidget {
           final action = nextAction == null
               ? const SizedBox.shrink()
               : ElevatedButton.icon(
-                  onPressed: () => onSetStatus(booking, nextAction.status),
-                  icon: Icon(nextAction.icon),
-                  label: Text(nextAction.label),
+                  onPressed: isUpdating
+                      ? null
+                      : () => onSetStatus(booking, nextAction.status),
+                  icon: isUpdating
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(nextAction.icon),
+                  label: Text(isUpdating ? 'Updating...' : nextAction.label),
                 );
 
           if (constraints.maxWidth < AppBreakpoints.tablet) {
@@ -753,7 +784,7 @@ class _WorkflowPanel extends StatelessWidget {
         const SectionHeading(
           title: 'Operational workflows',
           subtitle:
-              'Owner actions preserved as demo flows and ready for Supabase repositories.',
+              'Management actions preserved as demo flows and ready for Supabase repositories.',
         ),
         const SizedBox(height: AppSpacing.lg),
         Wrap(
@@ -784,7 +815,8 @@ class _WorkflowPanel extends StatelessWidget {
             _WorkflowAction(
               icon: Icons.delete_sweep_outlined,
               title: 'Manage listings',
-              description: 'Remove outdated listings from the owner inventory.',
+              description:
+                  'Remove outdated listings from the management inventory.',
               onTap: onDeleteListings,
             ),
           ],
@@ -849,7 +881,7 @@ class _OwnerOnlyView extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.xxl),
             child: EmptyStatePanel(
               icon: Icons.lock_outline,
-              title: 'Owner profile required',
+              title: 'Management access required',
               message:
                   'Create or sign into an owner account to manage crashpads, beds, stays, charges, and payout previews.',
               action: ElevatedButton(

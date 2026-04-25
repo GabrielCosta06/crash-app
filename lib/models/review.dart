@@ -21,3 +21,15 @@ class Review {
     );
   }
 }
+
+class ReviewWithCrashpad {
+  const ReviewWithCrashpad({
+    required this.crashpadId,
+    required this.crashpadName,
+    required this.review,
+  });
+
+  final String crashpadId;
+  final String crashpadName;
+  final Review review;
+}

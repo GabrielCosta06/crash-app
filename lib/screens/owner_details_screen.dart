@@ -10,6 +10,7 @@ import '../models/payment.dart';
 import '../models/review.dart';
 import '../services/availability_service.dart';
 import '../services/payment_service.dart';
+import 'checkout_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_components.dart';
 import '../widgets/crashpad_listing_card.dart';
@@ -55,7 +56,21 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
     final user = repository.currentUser;
     if (user == null || user.userType != AppUserType.employee) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only verified crew can write reviews.')),
+        const SnackBar(
+            content: Text('Only verified guests can write reviews.')),
+      );
+      return;
+    }
+    if (!repository.hasCompletedStayForReview(
+      crashpadId: _crashpad.id,
+      guestEmail: user.email,
+    )) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Complete a confirmed stay here before submitting a review.',
+          ),
+        ),
       );
       return;
     }
@@ -66,20 +81,43 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
     );
     if (result == null) return;
 
-    await repository.addReview(
-      crashpadId: _crashpad.id,
-      employeeName: user.displayName,
-      comment: result.comment,
-      rating: result.rating,
+    try {
+      await repository.addReview(
+        crashpadId: _crashpad.id,
+        employeeName: user.displayName,
+        comment: result.comment,
+        rating: result.rating,
+      );
+      if (!mounted) return;
+      setState(() => _reviewsFuture = _fetchReviews());
+      await showActionFeedback(
+        context: context,
+        icon: Icons.reviews_outlined,
+        title: 'Review added',
+        message: 'Your guest insight is now visible.',
+        color: AppPalette.cyan,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not submit review: $error')),
+      );
+    }
+  }
+
+  Future<void> _editCrashpad() async {
+    final updated = await Navigator.pushNamed(
+      context,
+      '/edit_listing',
+      arguments: _crashpad,
     );
-    if (!mounted) return;
-    setState(() => _reviewsFuture = _fetchReviews());
-    await showActionFeedback(
-      context: context,
-      icon: Icons.reviews_outlined,
-      title: 'Review added',
-      message: 'Your crew insight is now visible.',
-      color: AppPalette.cyan,
+    if (!mounted || updated is! Crashpad) return;
+    setState(() {
+      _crashpad = updated;
+      _reviewsFuture = _fetchReviews();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Listing changes saved.')),
     );
   }
 
@@ -87,6 +125,8 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
   Widget build(BuildContext context) {
     final repository = context.watch<AppRepository>();
     final isEmployee = repository.currentUser?.userType == AppUserType.employee;
+    final isOwner = repository.currentUser?.email.toLowerCase() ==
+        _crashpad.owner.contact?.toLowerCase();
     final averageRating = repository.calculateAverageRating(_crashpad.id);
     final availability = const AvailabilityService().summarize(_crashpad);
 
@@ -100,6 +140,12 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
               onPressed: _addReview,
               icon: const Icon(Icons.rate_review_outlined),
               tooltip: 'Add review',
+            ),
+          if (isOwner)
+            IconButton(
+              onPressed: _editCrashpad,
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit listing',
             ),
         ],
       ),
@@ -257,7 +303,7 @@ class _ListingHero extends StatelessWidget {
               icon: Icons.star_rounded,
               label: averageRating == 0
                   ? 'New listing'
-                  : '${averageRating.toStringAsFixed(1)} crew rating',
+                  : '${averageRating.toStringAsFixed(1)} guest rating',
             ),
             _FactPill(
               icon: Icons.king_bed_outlined,
@@ -317,52 +363,31 @@ class _BookingPanelState extends State<_BookingPanel> {
     );
   }
 
-  Future<void> _showMockPayment() async {
+  Future<void> _startCheckout() async {
     final repository = context.read<AppRepository>();
     final user = repository.currentUser;
     if (user == null || !user.isEmployee) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sign in as crew to book this stay.')),
+        const SnackBar(content: Text('Sign in as a guest to book this stay.')),
       );
       return;
     }
-    final authorized = _paymentService.authorizeMockPayment(_summary);
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Mock payment ready'),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: SingleChildScrollView(
-            child: PaymentSummaryCard(summary: authorized),
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              await repository.createBooking(
-                crashpad: widget.crashpad,
-                draft: _draft,
-                paymentSummary: _paymentService.captureMockPayment(authorized),
-              );
-              if (!mounted) return;
-              await showActionFeedback(
-                context: context,
-                icon: Icons.check_circle_outline,
-                title: 'Booking confirmed',
-                message: 'The owner can now manage this stay.',
-                color: AppPalette.success,
-              );
-            },
-            child: const Text('Confirm mock payment'),
-          ),
-        ],
+    final booking = await Navigator.pushNamed(
+      context,
+      '/checkout',
+      arguments: CheckoutArguments(
+        crashpad: widget.crashpad,
+        draft: _draft,
+        summary: _summary,
       ),
+    );
+    if (!mounted || booking == null) return;
+    await showActionFeedback(
+      context: context,
+      icon: Icons.check_circle_outline,
+      title: 'Booking confirmed',
+      message: 'The owner can now manage this stay.',
+      color: AppPalette.success,
     );
   }
 
@@ -442,9 +467,9 @@ class _BookingPanelState extends State<_BookingPanel> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: availability.hasAvailability ? _showMockPayment : null,
+              onPressed: availability.hasAvailability ? _startCheckout : null,
               icon: const Icon(Icons.lock_outline),
-              label: const Text('Continue to mock payment'),
+              label: const Text('Continue to checkout'),
             ),
           ),
         ],
@@ -723,8 +748,8 @@ class _ReviewsSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             const SectionHeading(
-              title: 'Crew reviews',
-              subtitle: 'Recent guest feedback from verified crew members.',
+              title: 'Guest reviews',
+              subtitle: 'Recent feedback from verified guests.',
             ),
             const SizedBox(height: AppSpacing.lg),
             if (snapshot.connectionState == ConnectionState.waiting)
@@ -733,7 +758,7 @@ class _ReviewsSection extends StatelessWidget {
               const EmptyStatePanel(
                 icon: Icons.reviews_outlined,
                 title: 'No reviews yet',
-                message: 'Verified crew reviews will appear here.',
+                message: 'Verified guest reviews will appear here.',
               )
             else
               Column(
@@ -873,7 +898,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
               maxLines: 3,
               decoration: const InputDecoration(
                 labelText: 'Comment',
-                hintText: 'What should other crew know?',
+                hintText: 'What should other guests know?',
               ),
               validator: (value) => value == null || value.trim().length < 10
                   ? 'Be a bit more descriptive'

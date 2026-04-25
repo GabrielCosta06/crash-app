@@ -18,7 +18,9 @@ import '../widgets/app_components.dart';
 import '../widgets/interaction_feedback.dart';
 
 class CreateListingScreen extends StatefulWidget {
-  const CreateListingScreen({super.key});
+  const CreateListingScreen({super.key, this.crashpad});
+
+  final Crashpad? crashpad;
 
   @override
   State<CreateListingScreen> createState() => _CreateListingScreenState();
@@ -57,11 +59,60 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final List<_ChargeDraft> _checkoutCharges = <_ChargeDraft>[
     _ChargeDraft.initial(ChargeType.cleaning),
   ];
-  final List<String> _base64Images = <String>[];
+  final List<String> _imageUrls = <String>[];
   final ImagePicker _picker = ImagePicker();
 
   bool _isSubmitting = false;
   String _bedType = CrashpadBedModel.hot.label;
+  bool get _isEditing => widget.crashpad != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final crashpad = widget.crashpad;
+    if (crashpad == null) return;
+
+    _nameController.text = crashpad.name;
+    _descriptionController.text = crashpad.description;
+    _priceController.text = _formatNumber(crashpad.price);
+    _locationController.text = crashpad.location;
+    _nearestAirportController.text = crashpad.nearestAirport;
+    _minimumStayController.text = crashpad.minimumStayNights.toString();
+    _distanceController.text = crashpad.distanceToAirportMiles == null
+        ? ''
+        : _formatNumber(crashpad.distanceToAirportMiles!);
+    _bedType = crashpad.bedType;
+
+    _selectedAmenities
+      ..clear()
+      ..addAll(crashpad.amenities);
+    _selectedRules
+      ..clear()
+      ..addAll(crashpad.houseRules);
+
+    for (final room in _rooms) {
+      room.dispose();
+    }
+    _rooms
+      ..clear()
+      ..addAll(
+        crashpad.rooms.isEmpty
+            ? <_RoomDraft>[_RoomDraft.initial(crashpad.bedModel)]
+            : crashpad.rooms.map(_RoomDraft.fromRoom),
+      );
+
+    _services
+      ..clear()
+      ..addAll(crashpad.services.map(_ServiceDraft.fromService));
+    _checkoutCharges
+      ..clear()
+      ..addAll(crashpad.checkoutCharges.map(_ChargeDraft.fromCharge));
+    if (_checkoutCharges.isEmpty) {
+      _checkoutCharges.add(_ChargeDraft.initial(ChargeType.cleaning));
+    }
+
+    _imageUrls.addAll(crashpad.imageUrls);
+  }
 
   @override
   void dispose() {
@@ -92,7 +143,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     if (!mounted || files.isEmpty) return;
 
     const maxImages = 6;
-    if (_base64Images.length + files.length > maxImages) {
+    if (_imageUrls.length + files.length > maxImages) {
       messenger.showSnackBar(
         const SnackBar(content: Text('You can upload up to 6 images.')),
       );
@@ -101,13 +152,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
     for (final file in files) {
       final bytes = await file.readAsBytes();
-      _base64Images.add(base64Encode(bytes));
+      _imageUrls.add(base64Encode(bytes));
     }
     setState(() {});
   }
 
   void _removeImage(int index) {
-    setState(() => _base64Images.removeAt(index));
+    setState(() => _imageUrls.removeAt(index));
   }
 
   void _setBedType(String value) {
@@ -221,7 +272,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     if (user == null || user.userType != AppUserType.owner) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Only crashpad owners can create listings.'),
+          content: Text('Only crashpad owners can save listings.'),
         ),
       );
       return;
@@ -245,44 +296,82 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
     setState(() => _isSubmitting = true);
     try {
-      await repository.addCrashpad(
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim(),
-        location: _locationController.text.trim(),
-        nearestAirport: _nearestAirportController.text.trim().toUpperCase(),
-        bedType: _resolveOverallBedType(rooms),
-        price: double.parse(_priceController.text.trim()),
-        imageUrls: _base64Images.isEmpty ? _placeholderImages : _base64Images,
-        rooms: rooms,
-        amenities: _contentService.normalizeSelection(_selectedAmenities),
-        houseRules: _contentService.normalizeSelection(_selectedRules),
-        services: _services
-            .where((service) => service.hasMeaningfulData)
-            .map((service) => service.toService())
-            .toList(),
-        checkoutCharges: _checkoutCharges
-            .where((charge) => charge.hasMeaningfulData)
-            .map((charge) => charge.toCheckoutCharge())
-            .toList(),
-        minimumStayNights: int.parse(_minimumStayController.text.trim()),
-        distanceToAirportMiles:
-            double.tryParse(_distanceController.text.trim()),
-      );
+      final imageUrls = _imageUrls.isEmpty ? _placeholderImages : _imageUrls;
+      final amenities = _contentService.normalizeSelection(_selectedAmenities);
+      final houseRules = _contentService.normalizeSelection(_selectedRules);
+      final services = _services
+          .where((service) => service.hasMeaningfulData)
+          .map((service) => service.toService())
+          .toList();
+      final checkoutCharges = _checkoutCharges
+          .where((charge) => charge.hasMeaningfulData)
+          .map((charge) => charge.toCheckoutCharge())
+          .toList();
+
+      Crashpad? savedCrashpad;
+      if (_isEditing) {
+        final existing = widget.crashpad!;
+        savedCrashpad = await repository.updateCrashpad(
+          existing.copyWith(
+            name: _nameController.text.trim(),
+            description: _descriptionController.text.trim(),
+            location: _locationController.text.trim(),
+            nearestAirport: _nearestAirportController.text.trim().toUpperCase(),
+            bedType: _resolveOverallBedType(rooms),
+            price: double.parse(_priceController.text.trim()),
+            imageUrls: imageUrls,
+            rooms: rooms,
+            amenities: amenities,
+            houseRules: houseRules,
+            services: services,
+            checkoutCharges: checkoutCharges,
+            minimumStayNights: int.parse(_minimumStayController.text.trim()),
+            distanceToAirportMiles:
+                double.tryParse(_distanceController.text.trim()),
+          ),
+        );
+      } else {
+        await repository.addCrashpad(
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          location: _locationController.text.trim(),
+          nearestAirport: _nearestAirportController.text.trim().toUpperCase(),
+          bedType: _resolveOverallBedType(rooms),
+          price: double.parse(_priceController.text.trim()),
+          imageUrls: imageUrls,
+          rooms: rooms,
+          amenities: amenities,
+          houseRules: houseRules,
+          services: services,
+          checkoutCharges: checkoutCharges,
+          minimumStayNights: int.parse(_minimumStayController.text.trim()),
+          distanceToAirportMiles:
+              double.tryParse(_distanceController.text.trim()),
+        );
+      }
 
       if (!mounted) return;
       await showActionFeedback(
         context: context,
         icon: Icons.check_circle_outline,
-        title: 'Crashpad published',
-        message: 'Inventory, rooms, fees, and capacity are now live.',
+        title: _isEditing ? 'Crashpad updated' : 'Crashpad published',
+        message: _isEditing
+            ? 'Listing details, rooms, fees, and guest-facing info are saved.'
+            : 'Inventory, rooms, fees, and capacity are now live.',
         color: AppPalette.success,
       );
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context, savedCrashpad);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create listing: $error')),
+        SnackBar(
+          content: Text(
+            _isEditing
+                ? 'Failed to save listing: $error'
+                : 'Failed to create listing: $error',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -312,7 +401,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: const AnimatedBackButton(),
-        title: const Text('New crashpad'),
+        title: Text(_isEditing ? 'Edit crashpad' : 'New crashpad'),
       ),
       body: Form(
         key: _formKey,
@@ -322,10 +411,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const SectionHeading(
-                  title: 'Create crashpad',
-                  subtitle:
-                      'Publish the actual property details owners need: rooms, beds, guests, fees, services, and house rules.',
+                SectionHeading(
+                  title: _isEditing ? 'Edit crashpad' : 'Create crashpad',
+                  subtitle: _isEditing
+                      ? 'Update every guest-facing and operational detail for this listing.'
+                      : 'Publish the actual property details owners need: rooms, beds, guests, fees, services, and house rules.',
                 ),
                 const SizedBox(height: AppSpacing.xxl),
                 LayoutBuilder(
@@ -380,7 +470,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         ),
                         const SizedBox(height: AppSpacing.xxl),
                         _GallerySection(
-                          base64Images: _base64Images,
+                          imageUrls: _imageUrls,
                           onPickImages: _pickImages,
                           onRemoveImage: _removeImage,
                         ),
@@ -420,6 +510,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                               preview,
                               const SizedBox(height: AppSpacing.xxl),
                               _SubmitPanel(
+                                isEditing: _isEditing,
                                 isSubmitting: _isSubmitting,
                                 onSubmit: _submit,
                               ),
@@ -437,6 +528,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       return const SizedBox.shrink();
                     }
                     return _SubmitPanel(
+                      isEditing: _isEditing,
                       isSubmitting: _isSubmitting,
                       onSubmit: _submit,
                     );
@@ -1266,12 +1358,12 @@ class _ChargeCard extends StatelessWidget {
 
 class _GallerySection extends StatelessWidget {
   const _GallerySection({
-    required this.base64Images,
+    required this.imageUrls,
     required this.onPickImages,
     required this.onRemoveImage,
   });
 
-  final List<String> base64Images;
+  final List<String> imageUrls;
   final VoidCallback onPickImages;
   final ValueChanged<int> onRemoveImage;
 
@@ -1286,17 +1378,12 @@ class _GallerySection extends StatelessWidget {
             spacing: 12,
             runSpacing: 12,
             children: <Widget>[
-              ...base64Images.asMap().entries.map(
+              ...imageUrls.asMap().entries.map(
                     (entry) => Stack(
                       children: <Widget>[
                         ClipRRect(
                           borderRadius: BorderRadius.circular(AppRadius.lg),
-                          child: Image.memory(
-                            base64Decode(entry.value),
-                            height: 100,
-                            width: 100,
-                            fit: BoxFit.cover,
-                          ),
+                          child: _GalleryPreview(imageUrl: entry.value),
                         ),
                         Positioned(
                           top: 6,
@@ -1337,6 +1424,48 @@ class _GallerySection extends StatelessWidget {
                 ?.copyWith(color: AppPalette.textMuted),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GalleryPreview extends StatelessWidget {
+  const _GalleryPreview({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl.startsWith('http')) {
+      return Image.network(
+        imageUrl,
+        height: 100,
+        width: 100,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+
+    try {
+      return Image.memory(
+        base64Decode(imageUrl),
+        height: 100,
+        width: 100,
+        fit: BoxFit.cover,
+      );
+    } catch (_) {
+      return _placeholder();
+    }
+  }
+
+  Widget _placeholder() {
+    return Container(
+      height: 100,
+      width: 100,
+      color: AppPalette.panelElevated,
+      child: const Icon(
+        Icons.image_not_supported_outlined,
+        color: AppPalette.textSubtle,
       ),
     );
   }
@@ -1466,10 +1595,12 @@ class _PreviewMetric extends StatelessWidget {
 
 class _SubmitPanel extends StatelessWidget {
   const _SubmitPanel({
+    required this.isEditing,
     required this.isSubmitting,
     required this.onSubmit,
   });
 
+  final bool isEditing;
   final bool isSubmitting;
   final VoidCallback onSubmit;
 
@@ -1479,11 +1610,13 @@ class _SubmitPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Text('Ready to publish',
+          Text(isEditing ? 'Ready to save' : 'Ready to publish',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'This saves the operational values used by marketplace availability and owner dashboard metrics.',
+            isEditing
+                ? 'Changes update the marketplace listing, booking details, availability metrics, fees, and owner payout previews.'
+                : 'This saves the operational values used by marketplace availability and owner dashboard metrics.',
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
@@ -1498,8 +1631,13 @@ class _SubmitPanel extends StatelessWidget {
                     width: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.publish_outlined),
-            label: Text(isSubmitting ? 'Publishing...' : 'Publish crashpad'),
+                : Icon(
+                    isEditing ? Icons.save_outlined : Icons.publish_outlined),
+            label: Text(
+              isSubmitting
+                  ? (isEditing ? 'Saving...' : 'Publishing...')
+                  : (isEditing ? 'Save changes' : 'Publish crashpad'),
+            ),
           ),
         ],
       ),
@@ -1539,6 +1677,7 @@ class _RoomDraft {
     required int activeGuests,
     required int hotCapacity,
     required int assignedBeds,
+    String? storageNote,
   })  : nameController = TextEditingController(text: name),
         physicalBedsController =
             TextEditingController(text: physicalBeds.toString()),
@@ -1548,7 +1687,7 @@ class _RoomDraft {
             TextEditingController(text: hotCapacity.toString()),
         assignedBedsController =
             TextEditingController(text: assignedBeds.toString()),
-        storageNoteController = TextEditingController();
+        storageNoteController = TextEditingController(text: storageNote ?? '');
 
   factory _RoomDraft.initial(CrashpadBedModel model) {
     return _RoomDraft(
@@ -1558,6 +1697,18 @@ class _RoomDraft {
       activeGuests: 0,
       hotCapacity: model == CrashpadBedModel.hot ? 6 : 4,
       assignedBeds: 0,
+    );
+  }
+
+  factory _RoomDraft.fromRoom(CrashpadRoom room) {
+    return _RoomDraft(
+      bedModel: room.bedModel,
+      name: room.name,
+      physicalBeds: room.physicalBeds,
+      activeGuests: room.activeGuests,
+      hotCapacity: room.hotCapacity,
+      assignedBeds: room.assignedBeds,
+      storageNote: room.storageNote,
     );
   }
 
@@ -1679,6 +1830,14 @@ class _ServiceDraft {
     );
   }
 
+  factory _ServiceDraft.fromService(CrashpadService service) {
+    return _ServiceDraft(
+      name: service.name,
+      description: service.description,
+      price: service.price,
+    );
+  }
+
   final TextEditingController nameController;
   final TextEditingController descriptionController;
   final TextEditingController priceController;
@@ -1731,6 +1890,15 @@ class _ChargeDraft {
       name: _chargeName(type),
       description: _chargeDescription(type),
       amount: type == ChargeType.damage ? 75 : 35,
+    );
+  }
+
+  factory _ChargeDraft.fromCharge(CrashpadCheckoutCharge charge) {
+    return _ChargeDraft(
+      type: charge.type,
+      name: charge.name,
+      description: charge.description,
+      amount: charge.amount,
     );
   }
 
@@ -1828,6 +1996,14 @@ String? _positiveIntValidator(String? value) {
 
 int _parseInt(String value, {required int fallback}) {
   return int.tryParse(value.trim()) ?? fallback;
+}
+
+String _formatNumber(double value) {
+  final rounded = value.roundToDouble();
+  if ((value - rounded).abs() < 0.001) {
+    return rounded.toInt().toString();
+  }
+  return value.toStringAsFixed(2);
 }
 
 const List<String> _placeholderImages = <String>[
