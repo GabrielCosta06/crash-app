@@ -10,6 +10,7 @@ import '../services/availability_service.dart';
 import '../services/payment_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_components.dart';
+import '../widgets/booking_components.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
   const OwnerDashboardScreen({super.key});
@@ -55,6 +56,25 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     BookingRecord booking,
     BookingStatus status,
   ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_statusDialogTitle(status)),
+        content: Text(_statusDialogMessage(status, booking)),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep current status'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(_statusDialogAction(status)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
     setState(() => _updatingBookingId = booking.id);
     try {
       await context.read<AppRepository>().updateBookingStatus(
@@ -77,6 +97,54 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     }
   }
 
+  String _statusDialogTitle(BookingStatus status) {
+    switch (status) {
+      case BookingStatus.confirmed:
+        return 'Approve this request?';
+      case BookingStatus.cancelled:
+        return 'Cancel this booking?';
+      case BookingStatus.active:
+        return 'Mark guest checked in?';
+      case BookingStatus.completed:
+        return 'Complete this stay?';
+      case BookingStatus.pending:
+      case BookingStatus.draft:
+        return 'Update booking status?';
+    }
+  }
+
+  String _statusDialogMessage(BookingStatus status, BookingRecord booking) {
+    switch (status) {
+      case BookingStatus.confirmed:
+        return 'Approve ${booking.guestName} for ${booking.crashpadName}. The guest will see the stay as confirmed.';
+      case BookingStatus.cancelled:
+        return 'This moves ${booking.crashpadName} to Cancelled and removes it from active booking lists.';
+      case BookingStatus.active:
+        return 'Use this after ${booking.guestName} has arrived for check-in.';
+      case BookingStatus.completed:
+        return 'Complete this stay after checkout is finished.';
+      case BookingStatus.pending:
+      case BookingStatus.draft:
+        return 'This will update the booking status.';
+    }
+  }
+
+  String _statusDialogAction(BookingStatus status) {
+    switch (status) {
+      case BookingStatus.confirmed:
+        return 'Approve Request';
+      case BookingStatus.cancelled:
+        return 'Cancel Booking';
+      case BookingStatus.active:
+        return 'Check In';
+      case BookingStatus.completed:
+        return 'Complete Stay';
+      case BookingStatus.pending:
+      case BookingStatus.draft:
+        return 'Update';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<AppRepository>();
@@ -92,7 +160,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           future: _listingsFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const _DashboardSkeleton();
             }
             if (snapshot.hasError) {
               return Center(
@@ -333,7 +401,7 @@ class _Metrics extends StatelessWidget {
             accent: AppPalette.cyan,
           ),
           MetricCard(
-            label: '${AppConfig.defaultBookingNights}-night payout projection',
+            label: 'Minimum-stay payout projection',
             value: '\$${estimatedPayout.toStringAsFixed(0)}',
             icon: Icons.account_balance_wallet_outlined,
             accent: AppPalette.warning,
@@ -359,12 +427,17 @@ class _Metrics extends StatelessWidget {
   static double _estimatedPayout(List<Crashpad> listings) {
     final paymentService = const PaymentService();
     return listings.fold<double>(0, (sum, listing) {
+      final checkIn = DateUtils.dateOnly(DateTime.now()).add(
+        const Duration(days: 1),
+      );
+      final checkOut = checkIn.add(Duration(days: listing.minimumStayNights));
       final summary = paymentService.buildSummary(
         BookingDraft(
           crashpadId: listing.id,
           guestId: 'mock-dashboard',
           nightlyRate: listing.price,
-          nights: AppConfig.defaultBookingNights,
+          checkInDate: checkIn,
+          checkOutDate: checkOut,
           guestCount: 1,
         ),
       );
@@ -515,15 +588,23 @@ class _PayoutPanel extends StatelessWidget {
     final primary = listings.isEmpty ? null : listings.first;
     final summary = primary == null
         ? null
-        : paymentService.buildSummary(
-            BookingDraft(
-              crashpadId: primary.id,
-              guestId: 'mock-owner-preview',
-              nightlyRate: primary.price,
-              nights: AppConfig.defaultBookingNights,
-              guestCount: 1,
-            ),
-          );
+        : () {
+            final checkIn = DateUtils.dateOnly(DateTime.now()).add(
+              const Duration(days: 1),
+            );
+            final checkOut =
+                checkIn.add(Duration(days: primary.minimumStayNights));
+            return paymentService.buildSummary(
+              BookingDraft(
+                crashpadId: primary.id,
+                guestId: 'mock-owner-preview',
+                nightlyRate: primary.price,
+                checkInDate: checkIn,
+                checkOutDate: checkOut,
+                guestCount: 1,
+              ),
+            );
+          }();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,11 +612,16 @@ class _PayoutPanel extends StatelessWidget {
         if (summary != null)
           PaymentSummaryCard(summary: summary, showStatus: false)
         else
-          const EmptyStatePanel(
+          EmptyStatePanel(
             icon: Icons.payments_outlined,
             title: 'No payout preview yet',
             message:
-                'Add a crashpad to preview guest charges and owner payout.',
+                'Set a nightly rate for your listing to preview your expected payout.',
+            action: TextButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.add),
+              label: const Text('Add your first crashpad'),
+            ),
           ),
         const SizedBox(height: AppSpacing.xxl),
         CrashSurface(
@@ -546,7 +632,7 @@ class _PayoutPanel extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 10),
               Text(
-                'Calculated from the current nightly rate, configured default stay length, and centralized ${(AppConfig.platformFeeRate * 100).toStringAsFixed(0)}% Crash App fee. Payment capture remains mocked until Stripe is connected.',
+                'Calculated from the current nightly rate, each listing minimum stay, and centralized ${(AppConfig.platformFeeRate * 100).toStringAsFixed(0)}% Crash App fee. Payment capture remains mocked until Stripe is connected.',
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
@@ -574,195 +660,218 @@ class _BookingWorkflowPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pending = bookings
+        .where((booking) => booking.status == BookingStatus.pending)
+        .toList();
+    final active = bookings
+        .where(
+          (booking) =>
+              booking.status == BookingStatus.confirmed ||
+              booking.status == BookingStatus.active,
+        )
+        .toList();
+    final past = bookings
+        .where((booking) => booking.status == BookingStatus.completed)
+        .toList();
+    final cancelled = bookings
+        .where((booking) => booking.status == BookingStatus.cancelled)
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         const SectionHeading(
-          title: 'Guest stays',
+          title: 'Booking requests',
           subtitle:
-              'Bookings created by guests after payment capture. Management can move stays through the active workflow.',
+              'Approve incoming crew requests, manage active stays, and keep cancelled bookings out of the way.',
         ),
         const SizedBox(height: AppSpacing.lg),
-        if (bookings.isEmpty)
-          const EmptyStatePanel(
-            icon: Icons.event_note_outlined,
-            title: 'No guest bookings yet',
-            message:
-                'Confirmed guest bookings will appear here after checkout.',
-          )
-        else
-          CrashSurface(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: bookings.map((booking) {
-                final isLast = booking == bookings.last;
-                return Column(
-                  children: <Widget>[
-                    _BookingWorkflowRow(
-                      booking: booking,
-                      onSetStatus: onSetStatus,
-                      isUpdating: updatingBookingId == booking.id,
-                    ),
-                    if (!isLast) const Divider(height: 1),
+        DefaultTabController(
+          length: 4,
+          child: Column(
+            children: <Widget>[
+              CrashSurface(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                radius: AppRadius.lg,
+                child: TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  tabs: <Widget>[
+                    Tab(text: 'Pending (${pending.length})'),
+                    Tab(text: 'Active (${active.length})'),
+                    Tab(text: 'Past (${past.length})'),
+                    Tab(text: 'Cancelled (${cancelled.length})'),
                   ],
-                );
-              }).toList(),
-            ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                height: 460,
+                child: TabBarView(
+                  children: <Widget>[
+                    _OwnerBookingList(
+                      bookings: pending,
+                      emptyTitle: 'No pending requests',
+                      emptyMessage:
+                          'New crew booking requests will appear here for approval.',
+                      updatingBookingId: updatingBookingId,
+                      onSetStatus: onSetStatus,
+                    ),
+                    _OwnerBookingList(
+                      bookings: active,
+                      emptyTitle: 'No active stays',
+                      emptyMessage:
+                          'Approved and checked-in bookings stay here until checkout is complete.',
+                      updatingBookingId: updatingBookingId,
+                      onSetStatus: onSetStatus,
+                    ),
+                    _OwnerBookingList(
+                      bookings: past,
+                      emptyTitle: 'No past stays',
+                      emptyMessage:
+                          'Completed stays will collect here for payout and review history.',
+                      updatingBookingId: updatingBookingId,
+                      onSetStatus: onSetStatus,
+                    ),
+                    _OwnerBookingList(
+                      bookings: cancelled,
+                      emptyTitle: 'No cancelled bookings',
+                      emptyMessage:
+                          'Declined and cancelled bookings are separated from active work.',
+                      updatingBookingId: updatingBookingId,
+                      onSetStatus: onSetStatus,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+        ),
       ],
     );
   }
 }
 
-class _BookingWorkflowRow extends StatelessWidget {
-  const _BookingWorkflowRow({
-    required this.booking,
+class _OwnerBookingList extends StatelessWidget {
+  const _OwnerBookingList({
+    required this.bookings,
+    required this.emptyTitle,
+    required this.emptyMessage,
+    required this.updatingBookingId,
     required this.onSetStatus,
-    required this.isUpdating,
   });
 
-  final BookingRecord booking;
-  final bool isUpdating;
+  final List<BookingRecord> bookings;
+  final String emptyTitle;
+  final String emptyMessage;
+  final String? updatingBookingId;
   final Future<void> Function(BookingRecord booking, BookingStatus status)
       onSetStatus;
 
   @override
   Widget build(BuildContext context) {
-    final nextAction = _nextAction();
+    if (bookings.isEmpty) {
+      return BookingEmptyState(
+        title: emptyTitle,
+        message: emptyMessage,
+      );
+    }
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final details = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(booking.crashpadName,
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                '${booking.guestName} | ${booking.nights} nights | ${booking.guestCount} guest(s)',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppPalette.textMuted),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  StatusBadge(
-                    label: booking.status.label,
-                    icon: Icons.event_available_outlined,
-                    color: _statusColor(booking.status),
-                  ),
-                  StatusBadge(
-                    label:
-                        '\$${booking.paymentSummary.ownerPayout.toStringAsFixed(2)} payout',
-                    icon: Icons.account_balance_wallet_outlined,
-                    color: AppPalette.success,
-                  ),
-                ],
-              ),
-            ],
-          );
-
-          final action = nextAction == null
-              ? const SizedBox.shrink()
-              : ElevatedButton.icon(
-                  onPressed: isUpdating
-                      ? null
-                      : () => onSetStatus(booking, nextAction.status),
-                  icon: isUpdating
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(nextAction.icon),
-                  label: Text(isUpdating ? 'Updating...' : nextAction.label),
-                );
-
-          if (constraints.maxWidth < AppBreakpoints.tablet) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                details,
-                if (nextAction != null) ...<Widget>[
-                  const SizedBox(height: AppSpacing.lg),
-                  action,
-                ],
-              ],
-            );
-          }
-
-          return Row(
-            children: <Widget>[
-              Expanded(child: details),
-              const SizedBox(width: AppSpacing.lg),
-              action,
-            ],
-          );
-        },
-      ),
+    return ListView.separated(
+      itemCount: bookings.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
+      itemBuilder: (context, index) {
+        final booking = bookings[index];
+        final isUpdating = updatingBookingId == booking.id;
+        final actions = _actionsFor(booking, isUpdating);
+        return BookingRecordCard(
+          booking: booking,
+          perspective: BookingPerspective.owner,
+          primaryAction: actions.primary,
+          secondaryAction: actions.secondary,
+        );
+      },
     );
   }
 
-  _BookingAction? _nextAction() {
-    switch (booking.status) {
-      case BookingStatus.confirmed:
-        return const _BookingAction(
-          label: 'Check in',
-          status: BookingStatus.active,
-          icon: Icons.login_outlined,
+  _BookingCardActions _actionsFor(BookingRecord booking, bool isUpdating) {
+    Widget button({
+      required String label,
+      required IconData icon,
+      required BookingStatus status,
+      bool outlined = false,
+    }) {
+      final onPressed = isUpdating ? null : () => onSetStatus(booking, status);
+      if (outlined) {
+        return OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon),
+          label: Text(isUpdating ? 'Updating...' : label),
         );
-      case BookingStatus.active:
-        return const _BookingAction(
-          label: 'Complete stay',
-          status: BookingStatus.completed,
-          icon: Icons.done_all_outlined,
-        );
-      case BookingStatus.pending:
-        return const _BookingAction(
-          label: 'Confirm',
-          status: BookingStatus.confirmed,
-          icon: Icons.check_outlined,
-        );
-      case BookingStatus.draft:
-      case BookingStatus.completed:
-      case BookingStatus.cancelled:
-        return null;
+      }
+      return ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: isUpdating
+            ? const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(icon),
+        label: Text(isUpdating ? 'Updating...' : label),
+      );
     }
-  }
 
-  Color _statusColor(BookingStatus status) {
-    switch (status) {
-      case BookingStatus.confirmed:
-        return AppPalette.blueSoft;
-      case BookingStatus.active:
-        return AppPalette.warning;
-      case BookingStatus.completed:
-        return AppPalette.success;
-      case BookingStatus.cancelled:
-        return AppPalette.danger;
+    switch (booking.status) {
       case BookingStatus.pending:
+        return _BookingCardActions(
+          primary: button(
+            label: 'Approve Request',
+            icon: Icons.check_outlined,
+            status: BookingStatus.confirmed,
+          ),
+          secondary: button(
+            label: 'Decline',
+            icon: Icons.close_outlined,
+            status: BookingStatus.cancelled,
+            outlined: true,
+          ),
+        );
+      case BookingStatus.confirmed:
+        return _BookingCardActions(
+          primary: button(
+            label: 'Check In',
+            icon: Icons.login_outlined,
+            status: BookingStatus.active,
+          ),
+          secondary: button(
+            label: 'Cancel',
+            icon: Icons.cancel_outlined,
+            status: BookingStatus.cancelled,
+            outlined: true,
+          ),
+        );
+      case BookingStatus.active:
+        return _BookingCardActions(
+          primary: button(
+            label: 'Complete Stay',
+            icon: Icons.done_all_outlined,
+            status: BookingStatus.completed,
+          ),
+        );
       case BookingStatus.draft:
-        return AppPalette.textMuted;
+      case BookingStatus.completed:
+      case BookingStatus.cancelled:
+        return const _BookingCardActions();
     }
   }
 }
 
-class _BookingAction {
-  const _BookingAction({
-    required this.label,
-    required this.status,
-    required this.icon,
-  });
+class _BookingCardActions {
+  const _BookingCardActions({this.primary, this.secondary});
 
-  final String label;
-  final BookingStatus status;
-  final IconData icon;
+  final Widget? primary;
+  final Widget? secondary;
 }
 
 class _WorkflowPanel extends StatelessWidget {
@@ -864,6 +973,58 @@ class _WorkflowAction extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DashboardSkeleton extends StatelessWidget {
+  const _DashboardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: ResponsivePage(
+        maxWidth: 1240,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SkeletonBox(height: 200, radius: AppRadius.xxl),
+            const SizedBox(height: AppSpacing.xxl),
+            Row(
+              children: [
+                Expanded(
+                    child: _SkeletonBox(height: 100, radius: AppRadius.lg)),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: _SkeletonBox(height: 100, radius: AppRadius.lg)),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: _SkeletonBox(height: 100, radius: AppRadius.lg)),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xxxl),
+            _SkeletonBox(height: 300, radius: AppRadius.xl),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonBox extends StatelessWidget {
+  const _SkeletonBox({required this.height, required this.radius});
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppPalette.panelElevated.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(radius),
       ),
     );
   }

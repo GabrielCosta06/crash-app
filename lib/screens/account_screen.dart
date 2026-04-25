@@ -11,10 +11,9 @@ import '../models/booking.dart';
 import '../models/review.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_components.dart';
+import '../widgets/booking_components.dart';
 import '../widgets/interaction_feedback.dart';
 import '../widgets/page_header.dart';
-
-final NumberFormat _money = NumberFormat.currency(symbol: r'$');
 
 /// Profile surface for account details, stay history, and reviews.
 class AccountScreen extends StatefulWidget {
@@ -110,6 +109,48 @@ class _AccountScreenState extends State<AccountScreen> {
     navigator.pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
+  Future<void> _cancelBooking(BookingRecord booking) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel this booking?'),
+        content: Text(
+          'This will move ${booking.crashpadName} to Cancelled and notify the owner in the demo dashboard.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep Booking'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cancel Booking'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    try {
+      await context.read<AppRepository>().updateBookingStatus(
+            bookingId: booking.id,
+            status: BookingStatus.cancelled,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Booking cancelled.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not cancel this booking. ${error.toString()}'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<AppRepository>();
@@ -201,7 +242,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 },
               ),
               const SizedBox(height: AppSpacing.xxxl),
-              _BookingHistorySection(bookings: bookings, user: user),
+              _BookingHistorySection(
+                bookings: bookings,
+                user: user,
+                onCancelBooking: _cancelBooking,
+              ),
               const SizedBox(height: AppSpacing.xxxl),
               _ReviewHistorySection(reviews: reviews, user: user),
             ],
@@ -447,120 +492,156 @@ class _AccountStatusSection extends StatelessWidget {
 }
 
 class _BookingHistorySection extends StatelessWidget {
-  const _BookingHistorySection({required this.bookings, required this.user});
+  const _BookingHistorySection({
+    required this.bookings,
+    required this.user,
+    required this.onCancelBooking,
+  });
 
   final List<BookingRecord> bookings;
   final AppUser user;
+  final Future<void> Function(BookingRecord booking) onCancelBooking;
 
   @override
   Widget build(BuildContext context) {
+    final pending = bookings
+        .where((booking) => booking.status == BookingStatus.pending)
+        .toList();
+    final active = bookings
+        .where(
+          (booking) =>
+              booking.status == BookingStatus.confirmed ||
+              booking.status == BookingStatus.active,
+        )
+        .toList();
+    final past = bookings
+        .where((booking) => booking.status == BookingStatus.completed)
+        .toList();
+    final cancelled = bookings
+        .where((booking) => booking.status == BookingStatus.cancelled)
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         SectionHeading(
-          title: 'Booking history',
+          title: user.isOwner ? 'Managed bookings' : 'Your bookings',
           subtitle: user.isOwner
               ? 'Guest stays attached to your managed listings.'
-              : 'Your confirmed stays and stay progress.',
+              : 'Requests, confirmed stays, and cancellations from your perspective.',
         ),
         const SizedBox(height: AppSpacing.lg),
-        if (bookings.isEmpty)
-          EmptyStatePanel(
-            icon: Icons.event_busy_outlined,
-            title: user.isOwner ? 'No managed stays yet' : 'No bookings yet',
-            message: user.isOwner
-                ? 'Confirmed guest bookings will appear here after checkout.'
-                : 'Book a crashpad and your confirmed stay will appear here.',
-          )
-        else
-          CrashSurface(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: bookings.asMap().entries.map((entry) {
-                final isLast = entry.key == bookings.length - 1;
-                return Column(
-                  children: <Widget>[
-                    _BookingHistoryTile(booking: entry.value, user: user),
-                    if (!isLast) const Divider(height: 1),
+        DefaultTabController(
+          length: 4,
+          child: Column(
+            children: <Widget>[
+              CrashSurface(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                radius: AppRadius.lg,
+                child: TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  tabs: <Widget>[
+                    Tab(text: 'Pending (${pending.length})'),
+                    Tab(text: 'Active (${active.length})'),
+                    Tab(text: 'Past (${past.length})'),
+                    Tab(text: 'Cancelled (${cancelled.length})'),
                   ],
-                );
-              }).toList(),
-            ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                height: 460,
+                child: TabBarView(
+                  children: <Widget>[
+                    _BookingHistoryList(
+                      bookings: pending,
+                      user: user,
+                      emptyTitle: 'No pending bookings',
+                      emptyMessage: user.isOwner
+                          ? 'New booking requests appear in the owner dashboard.'
+                          : 'Request a crashpad and it will appear here while the owner reviews it.',
+                      onCancelBooking: onCancelBooking,
+                    ),
+                    _BookingHistoryList(
+                      bookings: active,
+                      user: user,
+                      emptyTitle: 'No active bookings',
+                      emptyMessage: user.isOwner
+                          ? 'Approved stays appear here until checkout.'
+                          : 'Owner-approved stays appear here.',
+                      onCancelBooking: onCancelBooking,
+                    ),
+                    _BookingHistoryList(
+                      bookings: past,
+                      user: user,
+                      emptyTitle: 'No past bookings',
+                      emptyMessage:
+                          'Completed stays will be saved here for your records.',
+                      onCancelBooking: onCancelBooking,
+                    ),
+                    _BookingHistoryList(
+                      bookings: cancelled,
+                      user: user,
+                      emptyTitle: 'No cancelled bookings',
+                      emptyMessage:
+                          'Cancelled or declined bookings stay separate from active trips.',
+                      onCancelBooking: onCancelBooking,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+        ),
       ],
     );
   }
 }
 
-class _BookingHistoryTile extends StatelessWidget {
-  const _BookingHistoryTile({required this.booking, required this.user});
+class _BookingHistoryList extends StatelessWidget {
+  const _BookingHistoryList({
+    required this.bookings,
+    required this.user,
+    required this.emptyTitle,
+    required this.emptyMessage,
+    required this.onCancelBooking,
+  });
 
-  final BookingRecord booking;
+  final List<BookingRecord> bookings;
   final AppUser user;
+  final String emptyTitle;
+  final String emptyMessage;
+  final Future<void> Function(BookingRecord booking) onCancelBooking;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final details = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                booking.crashpadName,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 5),
-              Text(
-                user.isOwner
-                    ? '${booking.guestName} | ${booking.nights} nights | ${booking.guestCount} guest(s)'
-                    : '${booking.nights} nights | ${booking.guestCount} guest(s) | ${_formatDate(booking.createdAt)}',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppPalette.textMuted),
-              ),
-            ],
-          );
-          final facts = Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              StatusBadge(
-                label: booking.status.label,
-                icon: Icons.event_available_outlined,
-                color: _statusColor(booking.status),
-              ),
-              StatusBadge(
-                label:
-                    'Paid ${_money.format(booking.paymentSummary.totalChargedToGuest)}',
-                icon: Icons.payments_outlined,
-                color: AppPalette.success,
-              ),
-            ],
-          );
+    if (bookings.isEmpty) {
+      return BookingEmptyState(title: emptyTitle, message: emptyMessage);
+    }
 
-          if (constraints.maxWidth < AppBreakpoints.tablet) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                details,
-                const SizedBox(height: AppSpacing.lg),
-                facts,
-              ],
-            );
-          }
-
-          return Row(
-            children: <Widget>[
-              Expanded(child: details),
-              const SizedBox(width: AppSpacing.lg),
-              facts,
-            ],
-          );
-        },
-      ),
+    return ListView.separated(
+      itemCount: bookings.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
+      itemBuilder: (context, index) {
+        final booking = bookings[index];
+        final canCancel = user.isEmployee &&
+            (booking.status == BookingStatus.pending ||
+                booking.status == BookingStatus.confirmed);
+        return BookingRecordCard(
+          booking: booking,
+          perspective: user.isOwner
+              ? BookingPerspective.owner
+              : BookingPerspective.guest,
+          primaryAction: canCancel
+              ? OutlinedButton.icon(
+                  onPressed: () => onCancelBooking(booking),
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('Cancel Booking'),
+                )
+              : null,
+        );
+      },
     );
   }
 }
@@ -915,22 +996,6 @@ String _formatDate(DateTime date) {
 String _valueOrEmpty(String? value) {
   if (value == null || value.trim().isEmpty) return 'Not provided';
   return value;
-}
-
-Color _statusColor(BookingStatus status) {
-  switch (status) {
-    case BookingStatus.confirmed:
-      return AppPalette.blueSoft;
-    case BookingStatus.active:
-      return AppPalette.warning;
-    case BookingStatus.completed:
-      return AppPalette.success;
-    case BookingStatus.cancelled:
-      return AppPalette.danger;
-    case BookingStatus.pending:
-    case BookingStatus.draft:
-      return AppPalette.textMuted;
-  }
 }
 
 String? _requiredValidator(String? value) {

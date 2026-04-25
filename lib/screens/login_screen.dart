@@ -55,7 +55,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       widget.onAuthenticated?.call();
       if (widget.onAuthenticated == null) {
-        Navigator.pushReplacementNamed(context, '/home');
+        final user = repository.currentUser;
+        if (user?.isOwner ?? false) {
+          Navigator.pushReplacementNamed(context, '/management');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       }
     } on AuthException catch (error) {
       if (!mounted) return;
@@ -103,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final cardWidth = math.min(420.0, constraints.maxWidth);
+                  final cardWidth = math.min(350.0, constraints.maxWidth);
                   return Center(
                     child: SizedBox(
                       width: cardWidth,

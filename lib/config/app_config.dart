@@ -9,6 +9,5 @@ class AppConfig {
   static const double platformFeeRate = 0.02;
 
   static const String platformFeeLabel = '(-) Crash App fee';
-  static const int defaultBookingNights = 7;
   static const int defaultGuestCount = 1;
 }

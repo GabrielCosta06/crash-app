@@ -13,6 +13,7 @@ import '../services/payment_service.dart';
 import 'checkout_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_components.dart';
+import '../widgets/booking_components.dart';
 import '../widgets/crashpad_listing_card.dart';
 import '../widgets/interaction_feedback.dart';
 
@@ -28,6 +29,7 @@ class OwnerDetailsScreen extends StatefulWidget {
 class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
   late Crashpad _crashpad;
   late Future<List<Review>> _reviewsFuture;
+  final GlobalKey _bookingPanelKey = GlobalKey();
 
   @override
   void initState() {
@@ -166,7 +168,10 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
                       averageRating: averageRating,
                       availability: availability,
                     );
-                    final booking = _BookingPanel(crashpad: _crashpad);
+                    final booking = _BookingPanel(
+                      key: _bookingPanelKey,
+                      crashpad: _crashpad,
+                    );
 
                     if (!isWide) {
                       return Column(
@@ -189,6 +194,8 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
                   },
                 ),
                 const SizedBox(height: AppSpacing.xxxl),
+                _TrustSignals(crashpad: _crashpad),
+                const SizedBox(height: AppSpacing.xxxl),
                 _DetailsGrid(crashpad: _crashpad),
                 const SizedBox(height: AppSpacing.xxxl),
                 _RoomsSection(crashpad: _crashpad),
@@ -199,6 +206,28 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: isEmployee &&
+              MediaQuery.sizeOf(context).width < AppBreakpoints.desktop
+          ? Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: AppPalette.panel,
+                border: const Border(top: BorderSide(color: AppPalette.border)),
+              ),
+              child: ElevatedButton(
+                onPressed: () {
+                  if (_bookingPanelKey.currentContext != null) {
+                    Scrollable.ensureVisible(
+                      _bookingPanelKey.currentContext!,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+                child: const Text('Book now'),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -327,7 +356,7 @@ class _ListingHero extends StatelessWidget {
 }
 
 class _BookingPanel extends StatefulWidget {
-  const _BookingPanel({required this.crashpad});
+  const _BookingPanel({super.key, required this.crashpad});
 
   final Crashpad crashpad;
 
@@ -338,8 +367,22 @@ class _BookingPanel extends StatefulWidget {
 class _BookingPanelState extends State<_BookingPanel> {
   final PaymentService _paymentService = const PaymentService();
   final Set<String> _selectedServices = <String>{};
-  int _nights = AppConfig.defaultBookingNights;
+  late DateTime _checkInDate;
+  late DateTime _checkOutDate;
   int _guestCount = AppConfig.defaultGuestCount;
+
+  int get _nights => _checkOutDate.difference(_checkInDate).inDays;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInDate = DateUtils.dateOnly(DateTime.now()).add(
+      const Duration(days: 1),
+    );
+    _checkOutDate = _checkInDate.add(
+      Duration(days: widget.crashpad.minimumStayNights),
+    );
+  }
 
   PaymentSummary get _summary {
     return _paymentService.buildSummary(_draft);
@@ -355,9 +398,11 @@ class _BookingPanelState extends State<_BookingPanel> {
 
     return BookingDraft(
       crashpadId: widget.crashpad.id,
-      guestId: guest?.id ?? 'guest',
+      guestId: guest?.id ??
+          (throw StateError('Sign in as a guest to request this stay.')),
       nightlyRate: widget.crashpad.price,
-      nights: _nights,
+      checkInDate: _checkInDate,
+      checkOutDate: _checkOutDate,
       guestCount: _guestCount,
       additionalServices: selected,
     );
@@ -369,6 +414,14 @@ class _BookingPanelState extends State<_BookingPanel> {
     if (user == null || !user.isEmployee) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sign in as a guest to book this stay.')),
+      );
+      return;
+    }
+    if (!_checkOutDate.isAfter(_checkInDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Choose a check-out date after check-in.'),
+        ),
       );
       return;
     }
@@ -385,10 +438,48 @@ class _BookingPanelState extends State<_BookingPanel> {
     await showActionFeedback(
       context: context,
       icon: Icons.check_circle_outline,
-      title: 'Booking confirmed',
-      message: 'The owner can now manage this stay.',
-      color: AppPalette.success,
+      title: 'Request sent',
+      message: 'Your booking is pending owner approval.',
+      color: AppPalette.warning,
     );
+  }
+
+  Future<void> _pickCheckIn() async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _checkInDate.isBefore(today) ? today : _checkInDate,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 365)),
+      helpText: 'Select check-in',
+    );
+    if (selected == null) return;
+    final minimumCheckOut = selected.add(
+      Duration(days: widget.crashpad.minimumStayNights),
+    );
+    setState(() {
+      _checkInDate = selected;
+      if (!_checkOutDate.isAfter(selected) ||
+          _checkOutDate.isBefore(minimumCheckOut)) {
+        _checkOutDate = minimumCheckOut;
+      }
+    });
+  }
+
+  Future<void> _pickCheckOut() async {
+    final firstDate = _checkInDate.add(
+      Duration(days: widget.crashpad.minimumStayNights),
+    );
+    final selected = await showDatePicker(
+      context: context,
+      initialDate:
+          _checkOutDate.isBefore(firstDate) ? firstDate : _checkOutDate,
+      firstDate: firstDate,
+      lastDate: _checkInDate.add(const Duration(days: 365)),
+      helpText: 'Select check-out',
+    );
+    if (selected == null) return;
+    setState(() => _checkOutDate = selected);
   }
 
   @override
@@ -409,26 +500,28 @@ class _BookingPanelState extends State<_BookingPanel> {
                 ?.copyWith(color: AppPalette.textMuted),
           ),
           const SizedBox(height: AppSpacing.xl),
-          Row(
+          Column(
             children: <Widget>[
-              Expanded(
-                child: _StepperField(
-                  label: 'Nights',
-                  value: _nights,
-                  min: widget.crashpad.minimumStayNights,
-                  max: 30,
-                  onChanged: (value) => setState(() => _nights = value),
-                ),
+              _DatePickerField(
+                label: 'Check-in',
+                value: _formatDate(_checkInDate),
+                icon: Icons.flight_land_outlined,
+                onTap: _pickCheckIn,
               ),
-              const SizedBox(width: AppSpacing.lg),
-              Expanded(
-                child: _StepperField(
-                  label: 'Guests',
-                  value: _guestCount,
-                  min: 1,
-                  max: availability.availableToBook.clamp(1, 8).toInt(),
-                  onChanged: (value) => setState(() => _guestCount = value),
-                ),
+              const SizedBox(height: AppSpacing.md),
+              _DatePickerField(
+                label: 'Check-out',
+                value: _formatDate(_checkOutDate),
+                icon: Icons.flight_takeoff_outlined,
+                onTap: _pickCheckOut,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              _StepperField(
+                label: 'Guests',
+                value: _guestCount,
+                min: 1,
+                max: availability.availableToBook.clamp(1, 8).toInt(),
+                onChanged: (value) => setState(() => _guestCount = value),
               ),
             ],
           ),
@@ -462,14 +555,24 @@ class _BookingPanelState extends State<_BookingPanel> {
             }),
           ],
           const SizedBox(height: AppSpacing.xl),
-          PaymentSummaryCard(summary: _summary),
+          BookingPriceSummaryCard(
+            nightlyRate: widget.crashpad.price,
+            nights: _nights,
+            guestCount: _guestCount,
+            summary: _summary,
+          ),
           const SizedBox(height: AppSpacing.xl),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: availability.hasAvailability ? _startCheckout : null,
-              icon: const Icon(Icons.lock_outline),
-              label: const Text('Continue to checkout'),
+            child: Tooltip(
+              message: availability.hasAvailability
+                  ? ''
+                  : 'No beds available for the selected dates.',
+              child: ElevatedButton.icon(
+                onPressed: availability.hasAvailability ? _startCheckout : null,
+                icon: const Icon(Icons.send_outlined),
+                label: const Text('Request Booking'),
+              ),
             ),
           ),
         ],
@@ -529,6 +632,36 @@ class _StepperField extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DatePickerField extends StatelessWidget {
+  const _DatePickerField({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon),
+          suffixIcon: const Icon(Icons.calendar_month_outlined),
+        ),
+        child: Text(value, style: Theme.of(context).textTheme.titleMedium),
       ),
     );
   }
@@ -793,9 +926,20 @@ class _ReviewTile extends StatelessWidget {
           Row(
             children: <Widget>[
               Expanded(
-                child: Text(
-                  review.employeeName,
-                  style: Theme.of(context).textTheme.titleMedium,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review.employeeName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    const StatusBadge(
+                      label: 'Verified crew stay',
+                      icon: Icons.verified_outlined,
+                      color: AppPalette.success,
+                    ),
+                  ],
                 ),
               ),
               const Icon(Icons.star_rounded, color: AppPalette.warning),
@@ -803,15 +947,95 @@ class _ReviewTile extends StatelessWidget {
               Text(review.rating.toStringAsFixed(1)),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(review.comment),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             _formatDate(review.createdAt),
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
                 ?.copyWith(color: AppPalette.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrustSignals extends StatelessWidget {
+  const _TrustSignals({required this.crashpad});
+
+  final Crashpad crashpad;
+
+  @override
+  Widget build(BuildContext context) {
+    return CrashSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Trust and Verification',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppPalette.blue.withValues(alpha: 0.2),
+                child: Text(
+                  crashpad.owner.name.substring(0, 1).toUpperCase(),
+                  style: const TextStyle(
+                      color: AppPalette.blue, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hosted by ${crashpad.owner.name}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Text(
+                      'Verified Owner • Response time: < 1 hour',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Messaging feature coming soon!')),
+                  );
+                },
+                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                label: const Text('Message'),
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: const Size(0, 0),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 16),
+          _BulletLine(
+            icon: Icons.security_outlined,
+            text: 'Secure booking with verified payment protection.',
+          ),
+          _BulletLine(
+            icon: Icons.assignment_turned_in_outlined,
+            text: 'Strict house rules for guaranteed crew rest.',
+          ),
+          _BulletLine(
+            icon: Icons.cancel_outlined,
+            text:
+                'Flexible cancellation: Full refund up to 24h before check-in.',
           ),
         ],
       ),

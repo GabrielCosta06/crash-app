@@ -157,23 +157,23 @@ class _SignupScreenState extends State<SignupScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Crew onboarding',
-                                  style: GoogleFonts.spaceGrotesk(
-                                    textStyle: Theme.of(context)
-                                        .textTheme
-                                        .headlineSmall
-                                        ?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Activate your access to immersive crashpads built for recovery, focus, and connection.',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(color: AppPalette.softSlate),
-                                ),
+	                                Text(
+	                                  'Join the network',
+	                                  style: GoogleFonts.spaceGrotesk(
+	                                    textStyle: Theme.of(context)
+	                                        .textTheme
+	                                        .headlineSmall
+	                                        ?.copyWith(fontWeight: FontWeight.w700),
+	                                  ),
+	                                ),
+	                                const SizedBox(height: 8),
+	                                Text(
+	                                  'Register as a guest to book verified stays, or as an owner to manage your properties.',
+	                                  style: Theme.of(context)
+	                                      .textTheme
+	                                      .bodyMedium
+	                                      ?.copyWith(color: AppPalette.softSlate),
+	                                ),
                                 const SizedBox(height: 24),
                                 Form(
                                   key: _formKey,

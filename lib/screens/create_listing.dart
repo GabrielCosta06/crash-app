@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../config/app_config.dart';
 import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../models/booking.dart';
@@ -482,8 +481,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       nightlyRate:
                           double.tryParse(_priceController.text.trim()) ?? 0,
                       minimumStay:
-                          int.tryParse(_minimumStayController.text.trim()) ??
-                              AppConfig.defaultBookingNights,
+                          int.tryParse(_minimumStayController.text.trim()),
                       services: _previewServices(),
                       charges: _previewCharges(),
                     );
@@ -1482,12 +1480,25 @@ class _LivePreview extends StatelessWidget {
 
   final List<CrashpadRoom> rooms;
   final double nightlyRate;
-  final int minimumStay;
+  final int? minimumStay;
   final List<CrashpadService> services;
   final List<CrashpadCheckoutCharge> charges;
 
   @override
   Widget build(BuildContext context) {
+    final minimumStay = this.minimumStay;
+    if (minimumStay == null || minimumStay <= 0) {
+      return const EmptyStatePanel(
+        icon: Icons.error_outline,
+        title: 'Minimum stay needs a valid value',
+        message:
+            'Enter a minimum stay of at least 1 night to preview pricing and owner payout.',
+      );
+    }
+    final previewCheckIn = DateUtils.dateOnly(DateTime.now()).add(
+      const Duration(days: 1),
+    );
+    final previewCheckOut = previewCheckIn.add(Duration(days: minimumStay));
     final draftCrashpad = Crashpad(
       id: 'draft',
       name: 'Draft',
@@ -1511,7 +1522,8 @@ class _LivePreview extends StatelessWidget {
         crashpadId: 'draft',
         guestId: 'preview',
         nightlyRate: nightlyRate,
-        nights: minimumStay <= 0 ? AppConfig.defaultBookingNights : minimumStay,
+        checkInDate: previewCheckIn,
+        checkOutDate: previewCheckOut,
         guestCount: 1,
         additionalServices:
             services.take(1).map((service) => service.toLineItem()).toList(),
@@ -1540,8 +1552,7 @@ class _LivePreview extends StatelessWidget {
                 value: '${availability.availableToBook}',
               ),
               _PreviewMetric(
-                label:
-                    '${minimumStay <= 0 ? AppConfig.defaultBookingNights : minimumStay}-night owner payout',
+                label: '$minimumStay-night owner payout',
                 value: '\$${summary.ownerPayout.toStringAsFixed(2)}',
               ),
             ],

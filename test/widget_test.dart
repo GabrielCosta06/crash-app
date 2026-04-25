@@ -40,7 +40,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Book trusted crashpads built for crew rest.'),
+      find.text('Find verified crashpads near your airport.'),
       findsOneWidget,
     );
     expect(find.text('Management dashboard'), findsWidgets);

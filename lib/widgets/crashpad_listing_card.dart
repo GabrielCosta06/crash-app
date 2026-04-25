@@ -105,26 +105,53 @@ class CrashpadListingCard extends StatelessWidget {
                         icon: Icons.local_airport_outlined,
                         label: crashpad.nearestAirport,
                       ),
-                      _MiniFact(
-                        icon: Icons.king_bed_outlined,
-                        label: '${availability.availableToBook} open',
-                      ),
-                      if (crashpad.distanceToAirportMiles != null)
-                        _MiniFact(
-                          icon: Icons.route_outlined,
-                          label:
-                              '${crashpad.distanceToAirportMiles!.toStringAsFixed(1)} mi',
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+	                      _MiniFact(
+	                        icon: Icons.king_bed_outlined,
+	                        label: '${availability.availableToBook} open',
+	                        color: availability.availableToBook <= 1
+	                            ? AppPalette.danger
+	                            : null,
+	                      ),
+	                      if (crashpad.distanceToAirportMiles != null)
+	                        _MiniFact(
+	                          icon: Icons.route_outlined,
+	                          label:
+	                              '${crashpad.distanceToAirportMiles!.toStringAsFixed(1)} mi',
+	                        ),
+	                      _MiniFact(
+	                        icon: Icons.verified_user_outlined,
+	                        label: 'Verified',
+	                        color: AppPalette.success,
+	                      ),
+	                    ],
+	                  ),
+	                  const SizedBox(height: 16),
+	                  const Divider(height: 1),
+	                  const SizedBox(height: 12),
+	                  Row(
+	                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+	                    children: [
+	                      Text(
+	                        '${crashpad.houseRules.length} house rules',
+	                        style: Theme.of(context).textTheme.bodySmall,
+	                      ),
+	                      Text(
+	                        'View details',
+	                        style: Theme.of(context)
+	                            .textTheme
+	                            .labelLarge
+	                            ?.copyWith(color: AppPalette.blueSoft),
+	                      ),
+	                    ],
+	                  ),
+	                ],
+	              ),
+	            ),
+	          ],
+	        ),
+	      ),
+	    );
+	  }
 
   String _cityLine(String location) {
     final parts = location.split(',');
@@ -205,31 +232,34 @@ class _MiniFact extends StatelessWidget {
   const _MiniFact({
     required this.icon,
     required this.label,
+    this.color,
   });
 
   final IconData icon;
   final String label;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor = color ?? AppPalette.textMuted;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: AppPalette.panelElevated,
+        color: color?.withValues(alpha: 0.1) ?? AppPalette.panelElevated,
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppPalette.border),
+        border: Border.all(color: color?.withValues(alpha: 0.2) ?? AppPalette.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: AppPalette.textMuted),
+          Icon(icon, size: 14, color: effectiveColor),
           const SizedBox(width: 5),
           Text(
             label,
             style: Theme.of(context)
                 .textTheme
                 .labelMedium
-                ?.copyWith(color: AppPalette.textMuted),
+                ?.copyWith(color: effectiveColor),
           ),
         ],
       ),

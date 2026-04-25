@@ -38,6 +38,7 @@ class _FindScreenState extends State<FindScreen> {
 
   String _selectedBedType = 'All';
   String _selectedSort = 'Newest';
+  bool _showMap = false;
 
   @override
   void initState() {
@@ -103,6 +104,16 @@ class _FindScreenState extends State<FindScreen> {
                   title: 'Find a crashpad',
                   subtitle:
                       'Search by airport, city, amenity, price, and bed model.',
+                  trailing: Row(
+                    children: [
+                      const Text('List'),
+                      Switch(
+                        value: _showMap,
+                        onChanged: (v) => setState(() => _showMap = v),
+                      ),
+                      const Text('Map'),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 CrashSurface(
@@ -186,6 +197,8 @@ class _FindScreenState extends State<FindScreen> {
                     message:
                         'Adjust the search, sort, or bed model filters and try again.',
                   )
+                else if (_showMap)
+                  _MapViewPlaceholder(results: results)
                 else
                   _ResultLayout(
                     results: results,
@@ -279,6 +292,46 @@ class _ResultLayout extends StatelessWidget {
           itemCount: results.length,
         );
       },
+    );
+  }
+}
+
+class _MapViewPlaceholder extends StatelessWidget {
+  const _MapViewPlaceholder({required this.results});
+  final List<Crashpad> results;
+
+  @override
+  Widget build(BuildContext context) {
+    return CrashSurface(
+      padding: const EdgeInsets.all(AppSpacing.xxxl),
+      child: Column(
+        children: [
+          const Icon(Icons.map_outlined, size: 64, color: AppPalette.blueSoft),
+          const SizedBox(height: 16),
+          Text(
+            'Map View (Beta)',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Visualizing ${results.length} locations near ${results.first.nearestAirport}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 24),
+          Container(
+            height: 300,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppPalette.ink.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppPalette.border),
+            ),
+            child: const Center(
+              child: Text('Interactive Map Component Placeholder'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

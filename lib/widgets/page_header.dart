@@ -18,7 +18,7 @@ class PageHeader extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget> actions;
 
   @override
-  Size get preferredSize => const Size.fromHeight(140);
+  Size get preferredSize => const Size.fromHeight(132);
 
   @override
   Widget build(BuildContext context) {
@@ -72,98 +72,66 @@ class PageHeader extends StatelessWidget implements PreferredSizeWidget {
         ),
         child: SafeArea(
           bottom: false,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final bool compact = constraints.maxHeight < 138;
-              final bool tight = constraints.maxHeight < 120;
-
-              final EdgeInsets padding = EdgeInsets.fromLTRB(
-                20,
-                tight ? 8 : (compact ? 10 : 14),
-                20,
-                tight ? 10 : (compact ? 12 : 18),
-              );
-              final double iconPadding = tight ? 8 : (compact ? 10 : 12);
-              final double iconSize = tight ? 24 : 28;
-              final double primaryGap = tight ? 6 : 10;
-              final double secondaryGap = tight ? 4 : 6;
-
-              final TextStyle? titleStyle = (tight
-                      ? theme.textTheme.titleMedium
-                      : theme.textTheme.titleLarge)
-                  ?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: textColor,
-              );
-              final TextStyle? subtitleStyle =
-                  theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-                color: subTextColor,
-                fontSize: tight
-                    ? (theme.textTheme.bodyMedium?.fontSize ?? 14) * 0.94
-                    : null,
-              );
-
-              return Padding(
-                padding: padding,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: <Widget>[
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: <Widget>[
-                        Container(
-                          padding: EdgeInsets.all(iconPadding),
-                          decoration: BoxDecoration(
-                            color: accentBackground,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Icon(icon,
-                              size: iconSize, color: AppPalette.neonPulse),
-                        ),
-                        SizedBox(height: primaryGap),
-                        Text(
-                          title,
-                          textAlign: TextAlign.center,
-                          style: titleStyle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        SizedBox(height: secondaryGap),
-                        Text(
-                          subtitle,
-                          textAlign: TextAlign.center,
-                          style: subtitleStyle,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                    if (actions.isNotEmpty)
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: IconTheme.merge(
-                          data: IconThemeData(color: textColor),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: actions
-                                .map(
-                                  (Widget action) => Padding(
-                                    padding: const EdgeInsets.only(left: 8),
-                                    child: action,
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                        ),
-                      ),
-                  ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: accentBackground,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(icon, size: 26, color: AppPalette.neonPulse),
                 ),
-              );
-            },
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        title,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                          color: subTextColor,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                if (actions.isNotEmpty) ...<Widget>[
+                  const SizedBox(width: 12),
+                  IconTheme.merge(
+                    data: IconThemeData(color: textColor),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: actions
+                          .map(
+                            (Widget action) => Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: action,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),

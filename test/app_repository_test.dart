@@ -100,11 +100,13 @@ void main() {
     await repository.logOut();
     await repository.logIn('crew@crashpads.com', 'flysafe');
     final guest = repository.currentUser!;
+    final checkIn = DateTime(2026, 1, 1);
     final draft = BookingDraft(
       crashpadId: crashpad.id,
       guestId: guest.id,
       nightlyRate: crashpad.price,
-      nights: 5,
+      checkInDate: checkIn,
+      checkOutDate: checkIn.add(const Duration(days: 5)),
       guestCount: 1,
       additionalServices: const <ChargeLineItem>[
         ChargeLineItem(
@@ -125,8 +127,8 @@ void main() {
       paymentSummary: authorized,
     );
 
-    expect(booking.status, BookingStatus.confirmed);
-    expect(booking.paymentSummary.status, PaymentStatus.paid);
+    expect(booking.status, BookingStatus.pending);
+    expect(booking.paymentSummary.status, PaymentStatus.authorized);
     expect(
       booking.paymentSummary.platformFeeRate,
       AppConfig.platformFeeRate,
@@ -147,6 +149,12 @@ void main() {
     final ownerBookings = await repository.fetchOwnerBookings(owner.email);
     expect(ownerBookings, hasLength(1));
     expect(ownerBookings.single.guestEmail, guest.email);
+
+    await repository.updateBookingStatus(
+      bookingId: booking.id,
+      status: BookingStatus.confirmed,
+    );
+    expect(repository.bookings.single.status, BookingStatus.confirmed);
 
     await repository.updateBookingStatus(
       bookingId: booking.id,
@@ -250,11 +258,13 @@ void main() {
       throwsA(isA<AuthException>()),
     );
 
+    final checkIn = DateTime(2026, 1, 1);
     final draft = BookingDraft(
       crashpadId: crashpad.id,
       guestId: guest.id,
       nightlyRate: crashpad.price,
-      nights: 3,
+      checkInDate: checkIn,
+      checkOutDate: checkIn.add(const Duration(days: 3)),
       guestCount: 1,
     );
     final booking = await repository.createBooking(

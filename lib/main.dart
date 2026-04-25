@@ -17,6 +17,7 @@ import 'screens/owner_details_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/subscription_screen.dart';
 import 'theme/app_theme.dart';
+import 'widgets/app_components.dart';
 
 /// Shared duration for page swaps within the main navigation shell.
 const Duration _navAnimationDuration = Duration(milliseconds: 260);
@@ -365,27 +366,48 @@ class _SidebarNavigation extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
-              child: Row(
-                children: [
-                  Container(
-                    height: 42,
-                    width: 42,
-                    decoration: BoxDecoration(
-                      gradient: AppGradients.accent,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.apartment_rounded),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Crash App',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ],
-              ),
-            ),
+	            Padding(
+	              padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+	              child: Column(
+	                crossAxisAlignment: CrossAxisAlignment.start,
+	                children: [
+	                  Row(
+	                    children: [
+	                      Container(
+	                        height: 42,
+	                        width: 42,
+	                        decoration: BoxDecoration(
+	                          gradient: AppGradients.accent,
+	                          borderRadius: BorderRadius.circular(12),
+	                        ),
+	                        child: const Icon(Icons.apartment_rounded),
+	                      ),
+	                      const SizedBox(width: 12),
+	                      Text(
+	                        'Crash App',
+	                        style: Theme.of(context).textTheme.titleLarge,
+	                      ),
+	                    ],
+	                  ),
+	                  const SizedBox(height: 16),
+	                  Consumer<AppRepository>(
+	                    builder: (context, repo, _) {
+	                      final user = repo.currentUser;
+	                      if (user == null) return const SizedBox.shrink();
+	                      return StatusBadge(
+	                        label: user.isOwner ? 'OWNER' : 'CREW',
+	                        icon: user.isOwner
+	                            ? Icons.business_center_outlined
+	                            : Icons.flight_outlined,
+	                        color: user.isOwner
+	                            ? AppPalette.warning
+	                            : AppPalette.cyan,
+	                      );
+	                    },
+	                  ),
+	                ],
+	              ),
+	            ),
             Expanded(
               child: NavigationRail(
                 extended: true,

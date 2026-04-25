@@ -29,25 +29,37 @@ extension BookingStatusLabel on BookingStatus {
 }
 
 class BookingDraft {
-  const BookingDraft({
+  BookingDraft({
     required this.crashpadId,
     required this.guestId,
     required this.nightlyRate,
-    required this.nights,
+    required this.checkInDate,
+    required this.checkOutDate,
     required this.guestCount,
     this.additionalServices = const <ChargeLineItem>[],
     this.checkoutCharges = const <ChargeLineItem>[],
     this.status = BookingStatus.draft,
-  });
+  }) {
+    if (!checkOutDate.isAfter(checkInDate)) {
+      throw ArgumentError.value(
+        checkOutDate,
+        'checkOutDate',
+        'Booking check-out date must be after check-in date.',
+      );
+    }
+  }
 
   final String crashpadId;
   final String guestId;
   final double nightlyRate;
-  final int nights;
+  final DateTime checkInDate;
+  final DateTime checkOutDate;
   final int guestCount;
   final List<ChargeLineItem> additionalServices;
   final List<ChargeLineItem> checkoutCharges;
   final BookingStatus status;
+
+  int get nights => checkOutDate.difference(checkInDate).inDays;
 
   double get bookingSubtotal => nightlyRate * nights * guestCount;
 
@@ -55,7 +67,8 @@ class BookingDraft {
     String? crashpadId,
     String? guestId,
     double? nightlyRate,
-    int? nights,
+    DateTime? checkInDate,
+    DateTime? checkOutDate,
     int? guestCount,
     List<ChargeLineItem>? additionalServices,
     List<ChargeLineItem>? checkoutCharges,
@@ -65,7 +78,8 @@ class BookingDraft {
       crashpadId: crashpadId ?? this.crashpadId,
       guestId: guestId ?? this.guestId,
       nightlyRate: nightlyRate ?? this.nightlyRate,
-      nights: nights ?? this.nights,
+      checkInDate: checkInDate ?? this.checkInDate,
+      checkOutDate: checkOutDate ?? this.checkOutDate,
       guestCount: guestCount ?? this.guestCount,
       additionalServices: additionalServices ?? this.additionalServices,
       checkoutCharges: checkoutCharges ?? this.checkoutCharges,
@@ -75,7 +89,7 @@ class BookingDraft {
 }
 
 class BookingRecord {
-  const BookingRecord({
+  BookingRecord({
     required this.id,
     required this.crashpadId,
     required this.crashpadName,
@@ -83,12 +97,21 @@ class BookingRecord {
     required this.guestId,
     required this.guestName,
     required this.guestEmail,
-    required this.nights,
+    required this.checkInDate,
+    required this.checkOutDate,
     required this.guestCount,
     required this.paymentSummary,
     required this.createdAt,
     this.status = BookingStatus.confirmed,
-  });
+  }) {
+    if (!checkOutDate.isAfter(checkInDate)) {
+      throw ArgumentError.value(
+        checkOutDate,
+        'checkOutDate',
+        'Booking check-out date must be after check-in date.',
+      );
+    }
+  }
 
   final String id;
   final String crashpadId;
@@ -97,11 +120,14 @@ class BookingRecord {
   final String guestId;
   final String guestName;
   final String guestEmail;
-  final int nights;
+  final DateTime checkInDate;
+  final DateTime checkOutDate;
   final int guestCount;
   final PaymentSummary paymentSummary;
   final DateTime createdAt;
   final BookingStatus status;
+
+  int get nights => checkOutDate.difference(checkInDate).inDays;
 
   BookingRecord copyWith({
     BookingStatus? status,
@@ -115,7 +141,8 @@ class BookingRecord {
       guestId: guestId,
       guestName: guestName,
       guestEmail: guestEmail,
-      nights: nights,
+      checkInDate: checkInDate,
+      checkOutDate: checkOutDate,
       guestCount: guestCount,
       paymentSummary: paymentSummary ?? this.paymentSummary,
       createdAt: createdAt,

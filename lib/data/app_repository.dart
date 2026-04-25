@@ -9,6 +9,7 @@ import '../models/booking.dart';
 import '../models/crashpad.dart';
 import '../models/payment.dart';
 import '../models/review.dart';
+import '../models/message_thread.dart';
 import 'mock_crashpad_data.dart';
 
 /// In-memory data source used to simulate authentication, listings,
@@ -23,6 +24,7 @@ class AppRepository extends ChangeNotifier {
   final List<Crashpad> _crashpads = [];
   final List<BookingRecord> _bookings = [];
   final Map<String, List<Review>> _reviewsByCrashpad = {};
+  final List<MessageThread> _messageThreads = [];
   AppUser? _currentUser;
   bool _isDarkTheme = true;
 
@@ -32,6 +34,7 @@ class AppRepository extends ChangeNotifier {
 
   List<Crashpad> get crashpads => List.unmodifiable(_crashpads);
   List<BookingRecord> get bookings => List.unmodifiable(_bookings);
+  List<MessageThread> get messageThreads => List.unmodifiable(_messageThreads);
 
   /// Dark mode is now the only supported product theme.
   void toggleTheme() {
@@ -243,21 +246,33 @@ class AppRepository extends ChangeNotifier {
     if (guest == null || !guest.isEmployee) {
       throw AuthException('Only authenticated crew members can book stays.');
     }
+    if (!draft.checkOutDate.isAfter(draft.checkInDate)) {
+      throw ArgumentError(
+        'Booking request needs a check-out date after check-in.',
+      );
+    }
+    final ownerEmail = crashpad.owner.contact;
+    if (ownerEmail == null || ownerEmail.trim().isEmpty) {
+      throw StateError('This listing is missing owner contact information.');
+    }
     await Future<void>.delayed(const Duration(milliseconds: 240));
-    final capturedPayment = paymentSummary.copyWith(status: PaymentStatus.paid);
+    final bookingPayment = paymentSummary.status == PaymentStatus.draft
+        ? paymentSummary.copyWith(status: PaymentStatus.authorized)
+        : paymentSummary;
     final booking = BookingRecord(
       id: _uuid.v4(),
       crashpadId: crashpad.id,
       crashpadName: crashpad.name,
-      ownerEmail: crashpad.owner.contact ?? '',
+      ownerEmail: ownerEmail,
       guestId: guest.id,
       guestName: guest.displayName,
       guestEmail: guest.email,
-      nights: draft.nights,
+      checkInDate: draft.checkInDate,
+      checkOutDate: draft.checkOutDate,
       guestCount: draft.guestCount,
-      paymentSummary: capturedPayment,
+      paymentSummary: bookingPayment,
       createdAt: DateTime.now(),
-      status: BookingStatus.confirmed,
+      status: BookingStatus.pending,
     );
     _bookings.insert(0, booking);
     notifyListeners();
@@ -270,7 +285,9 @@ class AppRepository extends ChangeNotifier {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 180));
     final index = _bookings.indexWhere((booking) => booking.id == bookingId);
-    if (index == -1) return;
+    if (index == -1) {
+      throw StateError('Booking request not found.');
+    }
     _bookings[index] = _bookings[index].copyWith(status: status);
     notifyListeners();
   }
@@ -331,7 +348,8 @@ class AppRepository extends ChangeNotifier {
           booking.crashpadId == crashpadId &&
           booking.guestEmail.toLowerCase() == guestEmail.toLowerCase() &&
           booking.status == BookingStatus.completed &&
-          booking.paymentSummary.status == PaymentStatus.paid,
+          (booking.paymentSummary.status == PaymentStatus.paid ||
+              booking.paymentSummary.status == PaymentStatus.authorized),
     );
   }
 

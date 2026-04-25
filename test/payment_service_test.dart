@@ -8,13 +8,15 @@ void main() {
   group('PaymentService', () {
     test('calculates guest charge, Crash App fee, and owner payout', () {
       const service = PaymentService();
+      final checkIn = DateTime(2026, 1, 1);
 
       final summary = service.buildSummary(
-        const BookingDraft(
+        BookingDraft(
           crashpadId: 'listing-1',
           guestId: 'guest-1',
           nightlyRate: 1000,
-          nights: 1,
+          checkInDate: checkIn,
+          checkOutDate: checkIn.add(const Duration(days: 1)),
           guestCount: 1,
           additionalServices: <ChargeLineItem>[
             ChargeLineItem(

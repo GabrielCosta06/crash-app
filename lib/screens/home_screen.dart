@@ -86,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         : () => widget.onUpdateIndex?.call(
                               widget.managementIndex!,
                             ),
+                    onFindTap: () => widget.onUpdateIndex?.call(1),
                     listingCount: crashpads.length,
                     openBeds: totalOpenBeds,
                   ),
@@ -136,6 +137,7 @@ class _HeroSearch extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     this.onManagementTap,
+    required this.onFindTap,
     required this.listingCount,
     required this.openBeds,
   });
@@ -143,6 +145,7 @@ class _HeroSearch extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback? onManagementTap;
+  final VoidCallback onFindTap;
   final int listingCount;
   final int openBeds;
 
@@ -164,39 +167,40 @@ class _HeroSearch extends StatelessWidget {
                 color: AppPalette.cyan,
               ),
               const SizedBox(height: 18),
-              Text(
-                'Book trusted crashpads built for crew rest.',
-                style: Theme.of(context).textTheme.displaySmall,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Browse hot-bed and cold-bed inventory, compare rules and amenities, and preview the exact payment split before booking.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyLarge
-                    ?.copyWith(color: AppPalette.textMuted),
-              ),
+	              Text(
+	                'Find verified crashpads near your airport.',
+	                style: Theme.of(context).textTheme.displaySmall,
+	              ),
+	              const SizedBox(height: 14),
+	              Text(
+	                'Compare bed type, rules, amenities, and total cost. Built for airline crew rest between trips.',
+	                style: Theme.of(context)
+	                    .textTheme
+	                    .bodyLarge
+	                    ?.copyWith(color: AppPalette.textMuted),
+	              ),
               const SizedBox(height: 24),
               TextField(
                 controller: controller,
                 onChanged: onChanged,
                 textInputAction: TextInputAction.search,
-                decoration: const InputDecoration(
-                  labelText: 'Search city, airport, amenity',
-                  prefixIcon: Icon(Icons.search_rounded),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: <Widget>[
-                  ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.calendar_month_outlined),
-                    label: const Text('Start booking'),
-                  ),
-                  if (onManagementTap != null)
+	                decoration: const InputDecoration(
+	                  labelText: 'Search city, airport, amenity',
+	                  prefixIcon: Icon(Icons.search_rounded),
+	                ),
+		                onSubmitted: (_) => onManagementTap?.call(),
+		              ),
+		              const SizedBox(height: 16),
+		              Wrap(
+		                spacing: 12,
+		                runSpacing: 12,
+		                children: <Widget>[
+		                  ElevatedButton.icon(
+		                    onPressed: onFindTap,
+	                    icon: const Icon(Icons.calendar_month_outlined),
+	                    label: const Text('Start booking'),
+	                  ),
+	                  if (onManagementTap != null)
                     OutlinedButton.icon(
                       onPressed: onManagementTap,
                       icon: const Icon(Icons.dashboard_customize_outlined),
@@ -316,14 +320,30 @@ class _BedFilters extends StatelessWidget {
       children: bedTypes.map((bedType) {
         final isSelected = selected == bedType;
         return ChoiceChip(
-          label: Text(bedType),
-          selected: isSelected,
-          onSelected: (_) => onSelected(bedType),
-        );
-      }).toList(),
-    );
-  }
-}
+	          label: Row(
+	            mainAxisSize: MainAxisSize.min,
+	            children: [
+	              Text(bedType),
+	              if (bedType != 'All') ...[
+	                const SizedBox(width: 4),
+	                Tooltip(
+	                  message: bedType == 'Hot Bed'
+	                      ? 'Shared rotating sleeping space.'
+	                      : bedType == 'Cold Bed'
+	                          ? 'Dedicated assigned bed.'
+	                          : 'Offers both hot and cold bed options.',
+	                  child: const Icon(Icons.info_outline, size: 14),
+	                ),
+	              ],
+	            ],
+	          ),
+	          selected: isSelected,
+	          onSelected: (_) => onSelected(bedType),
+	        );
+	      }).toList(),
+	    );
+	  }
+	}
 
 class _ListingGrid extends StatelessWidget {
   const _ListingGrid({
