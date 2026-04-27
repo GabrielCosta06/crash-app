@@ -133,10 +133,7 @@ class _AccountScreenState extends State<AccountScreen> {
     if (!mounted) return;
 
     try {
-      await context.read<AppRepository>().updateBookingStatus(
-            bookingId: booking.id,
-            status: BookingStatus.cancelled,
-          );
+      await context.read<AppRepository>().cancelBooking(booking.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Booking cancelled.')),
@@ -147,6 +144,32 @@ class _AccountScreenState extends State<AccountScreen> {
         SnackBar(
           content: Text('Could not cancel this booking. ${error.toString()}'),
         ),
+      );
+    }
+  }
+
+  Future<void> _submitCheckoutReport(BookingRecord booking) async {
+    final report = await showDialog<_CheckoutReportDraft>(
+      context: context,
+      builder: (context) => _CheckoutReportDialog(booking: booking),
+    );
+    if (report == null) return;
+    if (!mounted) return;
+
+    try {
+      await context.read<AppRepository>().submitCheckoutReport(
+            bookingId: booking.id,
+            notes: report.notes,
+            photos: report.photos,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Checkout report submitted.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not submit report: $error')),
       );
     }
   }
@@ -246,6 +269,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 bookings: bookings,
                 user: user,
                 onCancelBooking: _cancelBooking,
+                onSubmitCheckoutReport: _submitCheckoutReport,
               ),
               const SizedBox(height: AppSpacing.xxxl),
               _ReviewHistorySection(reviews: reviews, user: user),
@@ -496,11 +520,13 @@ class _BookingHistorySection extends StatelessWidget {
     required this.bookings,
     required this.user,
     required this.onCancelBooking,
+    required this.onSubmitCheckoutReport,
   });
 
   final List<BookingRecord> bookings;
   final AppUser user;
   final Future<void> Function(BookingRecord booking) onCancelBooking;
+  final Future<void> Function(BookingRecord booking) onSubmitCheckoutReport;
 
   @override
   Widget build(BuildContext context) {
@@ -562,6 +588,7 @@ class _BookingHistorySection extends StatelessWidget {
                           ? 'New booking requests appear in the owner dashboard.'
                           : 'Request a crashpad and it will appear here while the owner reviews it.',
                       onCancelBooking: onCancelBooking,
+                      onSubmitCheckoutReport: onSubmitCheckoutReport,
                     ),
                     _BookingHistoryList(
                       bookings: active,
@@ -571,6 +598,7 @@ class _BookingHistorySection extends StatelessWidget {
                           ? 'Approved stays appear here until checkout.'
                           : 'Owner-approved stays appear here.',
                       onCancelBooking: onCancelBooking,
+                      onSubmitCheckoutReport: onSubmitCheckoutReport,
                     ),
                     _BookingHistoryList(
                       bookings: past,
@@ -579,6 +607,7 @@ class _BookingHistorySection extends StatelessWidget {
                       emptyMessage:
                           'Completed stays will be saved here for your records.',
                       onCancelBooking: onCancelBooking,
+                      onSubmitCheckoutReport: onSubmitCheckoutReport,
                     ),
                     _BookingHistoryList(
                       bookings: cancelled,
@@ -587,6 +616,7 @@ class _BookingHistorySection extends StatelessWidget {
                       emptyMessage:
                           'Cancelled or declined bookings stay separate from active trips.',
                       onCancelBooking: onCancelBooking,
+                      onSubmitCheckoutReport: onSubmitCheckoutReport,
                     ),
                   ],
                 ),
@@ -606,6 +636,7 @@ class _BookingHistoryList extends StatelessWidget {
     required this.emptyTitle,
     required this.emptyMessage,
     required this.onCancelBooking,
+    required this.onSubmitCheckoutReport,
   });
 
   final List<BookingRecord> bookings;
@@ -613,6 +644,7 @@ class _BookingHistoryList extends StatelessWidget {
   final String emptyTitle;
   final String emptyMessage;
   final Future<void> Function(BookingRecord booking) onCancelBooking;
+  final Future<void> Function(BookingRecord booking) onSubmitCheckoutReport;
 
   @override
   Widget build(BuildContext context) {
@@ -628,12 +660,32 @@ class _BookingHistoryList extends StatelessWidget {
         final canCancel = user.isEmployee &&
             (booking.status == BookingStatus.pending ||
                 booking.status == BookingStatus.confirmed);
+        final canSubmitCheckout = user.isEmployee &&
+            (booking.status == BookingStatus.confirmed ||
+                booking.status == BookingStatus.active);
         return BookingRecordCard(
           booking: booking,
           perspective: user.isOwner
               ? BookingPerspective.owner
               : BookingPerspective.guest,
-          primaryAction: canCancel
+          primaryAction: canSubmitCheckout
+              ? ElevatedButton.icon(
+                  onPressed: () => onSubmitCheckoutReport(booking),
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: Text(
+                    booking.checkoutReport == null
+                        ? 'Submit checkout report'
+                        : 'Update checkout report',
+                  ),
+                )
+              : canCancel
+                  ? OutlinedButton.icon(
+                      onPressed: () => onCancelBooking(booking),
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('Cancel Booking'),
+                    )
+                  : null,
+          secondaryAction: canSubmitCheckout && canCancel
               ? OutlinedButton.icon(
                   onPressed: () => onCancelBooking(booking),
                   icon: const Icon(Icons.cancel_outlined),
@@ -642,6 +694,196 @@ class _BookingHistoryList extends StatelessWidget {
               : null,
         );
       },
+    );
+  }
+}
+
+class _CheckoutReportDraft {
+  const _CheckoutReportDraft({
+    required this.notes,
+    required this.photos,
+  });
+
+  final String notes;
+  final List<CheckoutPhoto> photos;
+}
+
+class _CheckoutReportDialog extends StatefulWidget {
+  const _CheckoutReportDialog({required this.booking});
+
+  final BookingRecord booking;
+
+  @override
+  State<_CheckoutReportDialog> createState() => _CheckoutReportDialogState();
+}
+
+class _CheckoutReportDialogState extends State<_CheckoutReportDialog> {
+  final ImagePicker _picker = ImagePicker();
+  final TextEditingController _notesController = TextEditingController();
+  final List<CheckoutPhoto> _photos = <CheckoutPhoto>[];
+  bool _isPicking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.booking.checkoutReport;
+    if (existing != null) {
+      _notesController.text = existing.notes;
+      _photos.addAll(existing.photos);
+    }
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickPhoto() async {
+    setState(() => _isPicking = true);
+    try {
+      final file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 72,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _photos.add(
+          CheckoutPhoto(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            fileName: file.name,
+            base64Data: base64Encode(bytes),
+            capturedAt: DateTime.now(),
+          ),
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isPicking = false);
+      }
+    }
+  }
+
+  void _submit() {
+    if (_notesController.text.trim().isEmpty && _photos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a note or photo before submitting.')),
+      );
+      return;
+    }
+    Navigator.pop(
+      context,
+      _CheckoutReportDraft(
+        notes: _notesController.text.trim(),
+        photos: List.unmodifiable(_photos),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Checkout report'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                widget.booking.crashpadName,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              TextField(
+                controller: _notesController,
+                minLines: 3,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Checkout notes',
+                  hintText: 'Describe the room condition before you leave.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.md,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: <Widget>[
+                  ..._photos.map(
+                    (photo) => _CheckoutPhotoThumb(
+                      photo: photo,
+                      onRemove: () => setState(() => _photos.remove(photo)),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _isPicking ? null : _pickPhoto,
+                    icon: _isPicking
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_photo_alternate_outlined),
+                    label: Text(_isPicking ? 'Adding...' : 'Add photo'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _submit,
+          icon: const Icon(Icons.send_outlined),
+          label: const Text('Submit report'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CheckoutPhotoThumb extends StatelessWidget {
+  const _CheckoutPhotoThumb({
+    required this.photo,
+    required this.onRemove,
+  });
+
+  final CheckoutPhoto photo;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = base64Decode(photo.base64Data);
+    return SizedBox(
+      width: 118,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: Image.memory(
+              bytes,
+              height: 84,
+              width: 118,
+              fit: BoxFit.cover,
+            ),
+          ),
+          TextButton.icon(
+            onPressed: onRemove,
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Remove'),
+          ),
+        ],
+      ),
     );
   }
 }

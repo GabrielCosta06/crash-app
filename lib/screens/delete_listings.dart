@@ -5,6 +5,7 @@ import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../models/crashpad.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_components.dart';
 import '../widgets/interaction_feedback.dart';
 
 /// Lets owners prune outdated crashpad listings in bulk.
@@ -57,25 +58,29 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
       return;
     }
 
+    final impact = repository.bookingImpactForListingDeletion(_selectedIds);
     final confirm = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: const Text('Delete listings'),
-            content: Text(
-              'This will remove ${_selectedIds.length} listing(s) permanently. Continue?',
+            title: Text(
+              impact.canDelete
+                  ? 'Delete listings'
+                  : 'Resolve bookings before deleting',
             ),
+            content: _DeletionImpactSummary(impact: impact),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
+                child: Text(impact.canDelete ? 'Cancel' : 'Close'),
               ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppPalette.danger,
+              if (impact.canDelete)
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppPalette.danger,
+                  ),
+                  child: const Text('Delete'),
                 ),
-                child: const Text('Delete'),
-              ),
             ],
           ),
         ) ??
@@ -83,11 +88,17 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
 
     if (!confirm) return;
 
-    await repository.deleteCrashpads(_selectedIds);
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Listings removed.')),
-    );
-    await _loadListings();
+    try {
+      await repository.deleteCrashpads(_selectedIds);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Listings removed.')),
+      );
+      await _loadListings();
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not delete listings: $error')),
+      );
+    }
   }
 
   @override
@@ -163,6 +174,61 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
                     ),
                   ],
                 ),
+    );
+  }
+}
+
+class _DeletionImpactSummary extends StatelessWidget {
+  const _DeletionImpactSummary({required this.impact});
+
+  final ListingDeletionImpact impact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Selected listings: ${impact.selectedListingCount}',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          impact.canDelete
+              ? 'These listings have no pending, confirmed, or active bookings. Completed and cancelled booking history will remain visible.'
+              : 'Listings with live bookings cannot be deleted. Resolve pending, confirmed, and active stays first.',
+        ),
+        const SizedBox(height: 16),
+        _ImpactRow(label: 'Pending', value: impact.pendingCount),
+        _ImpactRow(label: 'Confirmed', value: impact.confirmedCount),
+        _ImpactRow(label: 'Active', value: impact.activeCount),
+        _ImpactRow(label: 'Completed history', value: impact.completedCount),
+        _ImpactRow(label: 'Cancelled history', value: impact.cancelledCount),
+      ],
+    );
+  }
+}
+
+class _ImpactRow extends StatelessWidget {
+  const _ImpactRow({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: <Widget>[
+          Expanded(child: Text(label)),
+          StatusBadge(
+            label: '$value',
+            color: value == 0 ? AppPalette.success : AppPalette.warning,
+          ),
+        ],
+      ),
     );
   }
 }

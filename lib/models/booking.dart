@@ -88,6 +88,34 @@ class BookingDraft {
   }
 }
 
+class CheckoutPhoto {
+  const CheckoutPhoto({
+    required this.id,
+    required this.fileName,
+    required this.base64Data,
+    required this.capturedAt,
+  });
+
+  final String id;
+  final String fileName;
+  final String base64Data;
+  final DateTime capturedAt;
+}
+
+class CheckoutReport {
+  const CheckoutReport({
+    required this.notes,
+    required this.photos,
+    required this.submittedAt,
+  });
+
+  final String notes;
+  final List<CheckoutPhoto> photos;
+  final DateTime submittedAt;
+
+  bool get hasPhotos => photos.isNotEmpty;
+}
+
 class BookingRecord {
   BookingRecord({
     required this.id,
@@ -103,6 +131,13 @@ class BookingRecord {
     required this.paymentSummary,
     required this.createdAt,
     this.status = BookingStatus.confirmed,
+    this.checkoutReport,
+    this.ownerCheckoutNote,
+    this.assignedRoomId,
+    this.assignedRoomName,
+    this.assignedBedId,
+    this.assignedBedLabel,
+    this.assignmentNote,
   }) {
     if (!checkOutDate.isAfter(checkInDate)) {
       throw ArgumentError.value(
@@ -126,12 +161,28 @@ class BookingRecord {
   final PaymentSummary paymentSummary;
   final DateTime createdAt;
   final BookingStatus status;
+  final CheckoutReport? checkoutReport;
+  final String? ownerCheckoutNote;
+  final String? assignedRoomId;
+  final String? assignedRoomName;
+  final String? assignedBedId;
+  final String? assignedBedLabel;
+  final String? assignmentNote;
 
   int get nights => checkOutDate.difference(checkInDate).inDays;
+
+  bool get hasManualAssignment => assignedRoomId != null;
 
   BookingRecord copyWith({
     BookingStatus? status,
     PaymentSummary? paymentSummary,
+    CheckoutReport? checkoutReport,
+    String? ownerCheckoutNote,
+    String? assignedRoomId,
+    String? assignedRoomName,
+    String? assignedBedId,
+    String? assignedBedLabel,
+    String? assignmentNote,
   }) {
     return BookingRecord(
       id: id,
@@ -147,6 +198,13 @@ class BookingRecord {
       paymentSummary: paymentSummary ?? this.paymentSummary,
       createdAt: createdAt,
       status: status ?? this.status,
+      checkoutReport: checkoutReport ?? this.checkoutReport,
+      ownerCheckoutNote: ownerCheckoutNote ?? this.ownerCheckoutNote,
+      assignedRoomId: assignedRoomId ?? this.assignedRoomId,
+      assignedRoomName: assignedRoomName ?? this.assignedRoomName,
+      assignedBedId: assignedBedId ?? this.assignedBedId,
+      assignedBedLabel: assignedBedLabel ?? this.assignedBedLabel,
+      assignmentNote: assignmentNote ?? this.assignmentNote,
     );
   }
 }

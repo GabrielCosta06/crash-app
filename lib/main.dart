@@ -73,6 +73,12 @@ class _MyAppState extends State<MyApp> {
       destination == '/delete_listings' ||
       destination == '/edit_listing';
 
+  String _landingRoute() {
+    return _repository.currentUser?.userType == AppUserType.owner
+        ? '/management'
+        : '/home';
+  }
+
   /// Handles route creation while respecting the current auth state.
   Route<dynamic> _generateRoute(RouteSettings settings) {
     final destination = settings.name ?? '/login';
@@ -83,7 +89,7 @@ class _MyAppState extends State<MyApp> {
       return MaterialPageRoute<void>(
         builder: (context) => LoginScreen(
           onAuthenticated: () =>
-              Navigator.of(context).pushReplacementNamed('/home'),
+              Navigator.of(context).pushReplacementNamed(_landingRoute()),
         ),
         settings: settings,
       );
@@ -103,18 +109,22 @@ class _MyAppState extends State<MyApp> {
       case '/login':
         builder = (context) => LoginScreen(
               onAuthenticated: () =>
-                  Navigator.of(context).pushReplacementNamed('/home'),
+                  Navigator.of(context).pushReplacementNamed(_landingRoute()),
             );
         break;
       case '/signup':
         builder = (context) => const SignupScreen();
         break;
       case '/home':
-        builder = (context) => const MainScreen();
+        final args = settings.arguments;
+        builder = (context) => MainScreen(
+              initialFindQuery: args is String ? args : null,
+              initialIndex: args is String ? 1 : 0,
+            );
         break;
       case '/management':
       case '/owner':
-        builder = (context) => const OwnerDashboardScreen();
+        builder = (context) => const MainScreen(initialIndex: 2);
         break;
       case '/create_listing':
         builder = (context) => const CreateListingScreen();
@@ -143,7 +153,7 @@ class _MyAppState extends State<MyApp> {
       default:
         builder = (context) => LoginScreen(
               onAuthenticated: () =>
-                  Navigator.of(context).pushReplacementNamed('/home'),
+                  Navigator.of(context).pushReplacementNamed(_landingRoute()),
             );
     }
 
@@ -159,7 +169,7 @@ class _MyAppState extends State<MyApp> {
           title: 'Crash App',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.dark,
-          initialRoute: _isAuthenticated ? '/home' : '/login',
+          initialRoute: _isAuthenticated ? _landingRoute() : '/login',
           onGenerateRoute: _generateRoute,
         ),
       ),
@@ -169,14 +179,29 @@ class _MyAppState extends State<MyApp> {
 
 /// Hosts the main app destinations behind adaptive mobile/web navigation.
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  const MainScreen({
+    super.key,
+    this.initialIndex = 0,
+    this.initialFindQuery,
+  });
+
+  final int initialIndex;
+  final String? initialFindQuery;
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
+  String? _findSearchQuery;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _findSearchQuery = widget.initialFindQuery;
+  }
 
   /// Updates the selected destination and triggers the animated swap.
   void _updateIndex(int index) {
@@ -185,6 +210,13 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onNavigationTapped(int index) => _updateIndex(index);
+
+  void _openFindWithQuery(String query) {
+    setState(() {
+      _findSearchQuery = query.trim();
+      _currentIndex = 1;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -206,8 +238,12 @@ class _MainScreenState extends State<MainScreen> {
       HomeScreen(
         onUpdateIndex: _updateIndex,
         managementIndex: managementIndex,
+        onFindSearch: _openFindWithQuery,
       ),
-      const FindScreen(),
+      FindScreen(
+        key: ValueKey<String>(_findSearchQuery ?? ''),
+        initialSearchQuery: _findSearchQuery,
+      ),
       if (canManage) const OwnerDashboardScreen(),
       const AccountScreen(),
     ];
@@ -366,48 +402,47 @@ class _SidebarNavigation extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-	            Padding(
-	              padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
-	              child: Column(
-	                crossAxisAlignment: CrossAxisAlignment.start,
-	                children: [
-	                  Row(
-	                    children: [
-	                      Container(
-	                        height: 42,
-	                        width: 42,
-	                        decoration: BoxDecoration(
-	                          gradient: AppGradients.accent,
-	                          borderRadius: BorderRadius.circular(12),
-	                        ),
-	                        child: const Icon(Icons.apartment_rounded),
-	                      ),
-	                      const SizedBox(width: 12),
-	                      Text(
-	                        'Crash App',
-	                        style: Theme.of(context).textTheme.titleLarge,
-	                      ),
-	                    ],
-	                  ),
-	                  const SizedBox(height: 16),
-	                  Consumer<AppRepository>(
-	                    builder: (context, repo, _) {
-	                      final user = repo.currentUser;
-	                      if (user == null) return const SizedBox.shrink();
-	                      return StatusBadge(
-	                        label: user.isOwner ? 'OWNER' : 'CREW',
-	                        icon: user.isOwner
-	                            ? Icons.business_center_outlined
-	                            : Icons.flight_outlined,
-	                        color: user.isOwner
-	                            ? AppPalette.warning
-	                            : AppPalette.cyan,
-	                      );
-	                    },
-	                  ),
-	                ],
-	              ),
-	            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        height: 42,
+                        width: 42,
+                        decoration: BoxDecoration(
+                          gradient: AppGradients.accent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.apartment_rounded),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Crash App',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Consumer<AppRepository>(
+                    builder: (context, repo, _) {
+                      final user = repo.currentUser;
+                      if (user == null) return const SizedBox.shrink();
+                      return StatusBadge(
+                        label: user.isOwner ? 'OWNER' : 'CREW',
+                        icon: user.isOwner
+                            ? Icons.business_center_outlined
+                            : Icons.flight_outlined,
+                        color:
+                            user.isOwner ? AppPalette.warning : AppPalette.cyan,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
             Expanded(
               child: NavigationRail(
                 extended: true,

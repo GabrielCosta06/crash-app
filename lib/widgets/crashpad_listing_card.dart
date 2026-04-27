@@ -2,9 +2,10 @@ import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../data/app_repository.dart';
 import '../models/crashpad.dart';
-import '../services/availability_service.dart';
 import '../theme/app_theme.dart';
 import 'app_components.dart';
 
@@ -22,7 +23,16 @@ class CrashpadListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final availability = const AvailabilityService().summarize(crashpad);
+    final checkIn = DateUtils.dateOnly(DateTime.now()).add(
+      const Duration(days: 1),
+    );
+    final checkOut = checkIn.add(Duration(days: crashpad.minimumStayNights));
+    final dateAwareCapacity =
+        context.watch<AppRepository>().availableCapacityForDates(
+              crashpad: crashpad,
+              checkInDate: checkIn,
+              checkOutDate: checkOut,
+            );
     final imageHeight = compact ? 132.0 : 190.0;
 
     return InkWell(
@@ -105,53 +115,52 @@ class CrashpadListingCard extends StatelessWidget {
                         icon: Icons.local_airport_outlined,
                         label: crashpad.nearestAirport,
                       ),
-	                      _MiniFact(
-	                        icon: Icons.king_bed_outlined,
-	                        label: '${availability.availableToBook} open',
-	                        color: availability.availableToBook <= 1
-	                            ? AppPalette.danger
-	                            : null,
-	                      ),
-	                      if (crashpad.distanceToAirportMiles != null)
-	                        _MiniFact(
-	                          icon: Icons.route_outlined,
-	                          label:
-	                              '${crashpad.distanceToAirportMiles!.toStringAsFixed(1)} mi',
-	                        ),
-	                      _MiniFact(
-	                        icon: Icons.verified_user_outlined,
-	                        label: 'Verified',
-	                        color: AppPalette.success,
-	                      ),
-	                    ],
-	                  ),
-	                  const SizedBox(height: 16),
-	                  const Divider(height: 1),
-	                  const SizedBox(height: 12),
-	                  Row(
-	                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-	                    children: [
-	                      Text(
-	                        '${crashpad.houseRules.length} house rules',
-	                        style: Theme.of(context).textTheme.bodySmall,
-	                      ),
-	                      Text(
-	                        'View details',
-	                        style: Theme.of(context)
-	                            .textTheme
-	                            .labelLarge
-	                            ?.copyWith(color: AppPalette.blueSoft),
-	                      ),
-	                    ],
-	                  ),
-	                ],
-	              ),
-	            ),
-	          ],
-	        ),
-	      ),
-	    );
-	  }
+                      _MiniFact(
+                        icon: Icons.king_bed_outlined,
+                        label: '$dateAwareCapacity open',
+                        color:
+                            dateAwareCapacity <= 1 ? AppPalette.danger : null,
+                      ),
+                      if (crashpad.distanceToAirportMiles != null)
+                        _MiniFact(
+                          icon: Icons.route_outlined,
+                          label:
+                              '${crashpad.distanceToAirportMiles!.toStringAsFixed(1)} mi',
+                        ),
+                      _MiniFact(
+                        icon: Icons.verified_user_outlined,
+                        label: 'Verified',
+                        color: AppPalette.success,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${crashpad.houseRules.length} house rules',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      Text(
+                        'View details',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(color: AppPalette.blueSoft),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   String _cityLine(String location) {
     final parts = location.split(',');
@@ -247,7 +256,8 @@ class _MiniFact extends StatelessWidget {
       decoration: BoxDecoration(
         color: color?.withValues(alpha: 0.1) ?? AppPalette.panelElevated,
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: color?.withValues(alpha: 0.2) ?? AppPalette.border),
+        border: Border.all(
+            color: color?.withValues(alpha: 0.2) ?? AppPalette.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

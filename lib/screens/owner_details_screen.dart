@@ -123,6 +123,37 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
     );
   }
 
+  Future<void> _messageOwner() async {
+    final repository = context.read<AppRepository>();
+    final user = repository.currentUser;
+    if (user == null || !user.isEmployee) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in as a guest to message owners.')),
+      );
+      return;
+    }
+    final text = await showDialog<String>(
+      context: context,
+      builder: (context) => _MessageOwnerDialog(crashpad: _crashpad),
+    );
+    if (text == null || text.trim().isEmpty) return;
+    try {
+      await repository.startMessageThread(
+        crashpadId: _crashpad.id,
+        text: text,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Message sent to the owner.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not send message: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<AppRepository>();
@@ -194,7 +225,7 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
                   },
                 ),
                 const SizedBox(height: AppSpacing.xxxl),
-                _TrustSignals(crashpad: _crashpad),
+                _TrustSignals(crashpad: _crashpad, onMessage: _messageOwner),
                 const SizedBox(height: AppSpacing.xxxl),
                 _DetailsGrid(crashpad: _crashpad),
                 const SizedBox(height: AppSpacing.xxxl),
@@ -425,6 +456,23 @@ class _BookingPanelState extends State<_BookingPanel> {
       );
       return;
     }
+    final available = repository.availableCapacityForDates(
+      crashpad: widget.crashpad,
+      checkInDate: _checkInDate,
+      checkOutDate: _checkOutDate,
+    );
+    if (available < _guestCount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            available == 0
+                ? 'No spaces are available for those dates.'
+                : 'Only $available space(s) are available for those dates.',
+          ),
+        ),
+      );
+      return;
+    }
     final booking = await Navigator.pushNamed(
       context,
       '/checkout',
@@ -484,7 +532,19 @@ class _BookingPanelState extends State<_BookingPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final repository = context.watch<AppRepository>();
     final availability = const AvailabilityService().summarize(widget.crashpad);
+    final dateAwareCapacity = repository.availableCapacityForDates(
+      crashpad: widget.crashpad,
+      checkInDate: _checkInDate,
+      checkOutDate: _checkOutDate,
+    );
+    final maxGuests = dateAwareCapacity.clamp(1, 8).toInt();
+    if (_guestCount > maxGuests) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _guestCount = maxGuests);
+      });
+    }
 
     return CrashSurface(
       child: Column(
@@ -520,8 +580,18 @@ class _BookingPanelState extends State<_BookingPanel> {
                 label: 'Guests',
                 value: _guestCount,
                 min: 1,
-                max: availability.availableToBook.clamp(1, 8).toInt(),
+                max: maxGuests,
                 onChanged: (value) => setState(() => _guestCount = value),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                dateAwareCapacity == availability.availableToBook
+                    ? '$dateAwareCapacity spaces available for selected dates.'
+                    : '$dateAwareCapacity spaces remain after existing requests for selected dates.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppPalette.textMuted),
               ),
             ],
           ),
@@ -569,7 +639,7 @@ class _BookingPanelState extends State<_BookingPanel> {
                   ? ''
                   : 'No beds available for the selected dates.',
               child: ElevatedButton.icon(
-                onPressed: availability.hasAvailability ? _startCheckout : null,
+                onPressed: dateAwareCapacity > 0 ? _startCheckout : null,
                 icon: const Icon(Icons.send_outlined),
                 label: const Text('Request Booking'),
               ),
@@ -964,9 +1034,10 @@ class _ReviewTile extends StatelessWidget {
 }
 
 class _TrustSignals extends StatelessWidget {
-  const _TrustSignals({required this.crashpad});
+  const _TrustSignals({required this.crashpad, required this.onMessage});
 
   final Crashpad crashpad;
+  final VoidCallback onMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -1005,12 +1076,7 @@ class _TrustSignals extends StatelessWidget {
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Messaging feature coming soon!')),
-                  );
-                },
+                onPressed: onMessage,
                 icon: const Icon(Icons.chat_bubble_outline, size: 18),
                 label: const Text('Message'),
                 style: OutlinedButton.styleFrom(
@@ -1039,6 +1105,77 @@ class _TrustSignals extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MessageOwnerDialog extends StatefulWidget {
+  const _MessageOwnerDialog({required this.crashpad});
+
+  final Crashpad crashpad;
+
+  @override
+  State<_MessageOwnerDialog> createState() => _MessageOwnerDialogState();
+}
+
+class _MessageOwnerDialogState extends State<_MessageOwnerDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _controller.text.trim();
+    if (text.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a short message before sending.')),
+      );
+      return;
+    }
+    Navigator.pop(context, text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Message owner'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              widget.crashpad.name,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            TextField(
+              controller: _controller,
+              minLines: 3,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                labelText: 'Message',
+                hintText: 'Ask about availability, rules, or arrival details.',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _submit,
+          icon: const Icon(Icons.send_outlined),
+          label: const Text('Send'),
+        ),
+      ],
     );
   }
 }

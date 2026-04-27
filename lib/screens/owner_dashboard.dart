@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +8,7 @@ import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../models/booking.dart';
 import '../models/crashpad.dart';
+import '../models/payment.dart';
 import '../services/availability_service.dart';
 import '../services/payment_service.dart';
 import '../theme/app_theme.dart';
@@ -52,35 +55,210 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     if (mounted) await _refresh();
   }
 
+  List<BookingRecord> _ownerBookingsForCurrentUser() {
+    final repository = context.read<AppRepository>();
+    final user = repository.currentUser;
+    if (user == null) return const <BookingRecord>[];
+    return repository.bookings
+        .where(
+          (booking) =>
+              booking.ownerEmail.toLowerCase() == user.email.toLowerCase(),
+        )
+        .toList();
+  }
+
+  Future<void> _openCheckoutCharges() async {
+    final repository = context.read<AppRepository>();
+    final activeBookings = _ownerBookingsForCurrentUser()
+        .where((booking) => booking.status == BookingStatus.active)
+        .toList();
+    if (activeBookings.isEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('No checked-in stays'),
+          content: const Text(
+            'Checkout charges can be assessed after a booking has been checked in.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final booking = await showDialog<BookingRecord>(
+      context: context,
+      builder: (context) => _BookingPickerDialog(
+        title: 'Select stay for charges',
+        bookings: activeBookings,
+      ),
+    );
+    if (booking == null || !mounted) return;
+    final listing = repository.findCrashpadById(booking.crashpadId);
+    final draft = await showDialog<_CheckoutCompletionDraft>(
+      context: context,
+      builder: (context) => _CheckoutChargeDialog(
+        booking: booking,
+        availableCharges: listing?.checkoutCharges ?? const [],
+        title: 'Assess checkout charges',
+        intro:
+            'Review checkout evidence for ${booking.guestName}, select any charges to stage, then save them for final capture at completion.',
+        actionLabel: 'Save charges',
+      ),
+    );
+    if (draft == null) return;
+    try {
+      await repository.assessCheckoutCharges(
+        bookingId: booking.id,
+        charges: draft.charges,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Checkout charges saved.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save checkout charges: $error')),
+      );
+    }
+  }
+
+  Future<void> _openManualAssignment() async {
+    final repository = context.read<AppRepository>();
+    final bookings = _ownerBookingsForCurrentUser()
+        .where(
+          (booking) =>
+              booking.status == BookingStatus.confirmed ||
+              booking.status == BookingStatus.active,
+        )
+        .toList();
+    final listings = (await _listingsFuture);
+    if (!mounted) return;
+    if (bookings.isEmpty || listings.isEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('No stays to assign'),
+          content: const Text(
+            'Manual assignment is available for confirmed or checked-in stays.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final draft = await showDialog<_ManualAssignmentDraft>(
+      context: context,
+      builder: (context) => _ManualAssignmentDialog(
+        bookings: bookings,
+        listings: listings,
+      ),
+    );
+    if (draft == null) return;
+    try {
+      await repository.assignBookingBed(
+        bookingId: draft.bookingId,
+        roomId: draft.roomId,
+        bedId: draft.bedId,
+        assignmentNote: draft.note,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Manual assignment saved.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save assignment: $error')),
+      );
+    }
+  }
+
   Future<void> _setBookingStatus(
     BookingRecord booking,
     BookingStatus status,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(_statusDialogTitle(status)),
-        content: Text(_statusDialogMessage(status, booking)),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep current status'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(_statusDialogAction(status)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    var checkoutCharges = const <ChargeLineItem>[];
+    var ownerCheckoutNote = '';
+    if (status == BookingStatus.completed) {
+      final listing = context.read<AppRepository>().findCrashpadById(
+            booking.crashpadId,
+          );
+      final completion = await showDialog<_CheckoutCompletionDraft>(
+        context: context,
+        builder: (context) => _CheckoutChargeDialog(
+          booking: booking,
+          availableCharges: listing?.checkoutCharges ?? const [],
+          title: 'Complete stay',
+          intro:
+              'Review checkout evidence for ${booking.guestName}, assess final charges, then capture the final payment.',
+          actionLabel: 'Complete Stay',
+        ),
+      );
+      if (completion == null) return;
+      checkoutCharges = completion.charges;
+      ownerCheckoutNote = completion.ownerNote;
+    } else {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(_statusDialogTitle(status)),
+          content: Text(_statusDialogMessage(status, booking)),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep current status'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(_statusDialogAction(status)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
     if (!mounted) return;
     setState(() => _updatingBookingId = booking.id);
     try {
-      await context.read<AppRepository>().updateBookingStatus(
+      final repository = context.read<AppRepository>();
+      switch (status) {
+        case BookingStatus.confirmed:
+          await repository.approveBooking(booking.id);
+          break;
+        case BookingStatus.cancelled:
+          if (booking.status == BookingStatus.pending) {
+            await repository.declineBooking(booking.id);
+          } else {
+            await repository.cancelBooking(booking.id);
+          }
+          break;
+        case BookingStatus.active:
+          await repository.checkInBooking(booking.id);
+          break;
+        case BookingStatus.completed:
+          await repository.completeBooking(
             bookingId: booking.id,
-            status: status,
+            checkoutCharges: checkoutCharges,
+            ownerCheckoutNote: ownerCheckoutNote,
           );
+          break;
+        case BookingStatus.pending:
+        case BookingStatus.draft:
+          throw StateError('Unsupported owner booking transition.');
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Stay moved to ${status.label}.')),
@@ -193,9 +371,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       _OwnerHero(owner: user, listings: listings),
+                      const SizedBox(height: AppSpacing.xl),
+                      _Metrics(listings: listings, bookings: ownerBookings),
                       const SizedBox(height: AppSpacing.xxl),
-                      _Metrics(listings: listings),
-                      const SizedBox(height: AppSpacing.xxxl),
                       LayoutBuilder(
                         builder: (context, constraints) {
                           final isWide =
@@ -209,7 +387,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                             return Column(
                               children: <Widget>[
                                 inventory,
-                                const SizedBox(height: AppSpacing.xxl),
+                                const SizedBox(height: AppSpacing.xl),
                                 payouts,
                               ],
                             );
@@ -230,11 +408,13 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         onSetStatus: _setBookingStatus,
                         updatingBookingId: _updatingBookingId,
                       ),
-                      const SizedBox(height: AppSpacing.xxxl),
+                      const SizedBox(height: AppSpacing.xxl),
                       _WorkflowPanel(
                         listings: listings,
                         onCreateListing: _openCreateListing,
                         onDeleteListings: _openDeleteListings,
+                        onCheckoutCharges: _openCheckoutCharges,
+                        onManualAssignment: _openManualAssignment,
                       ),
                     ],
                   ),
@@ -244,10 +424,512 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreateListing,
-        icon: const Icon(Icons.add_home_work_outlined),
-        label: const Text('Add crashpad'),
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.sizeOf(context).width < 900 ? 88 : 0,
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: _openCreateListing,
+          icon: const Icon(Icons.add_home_work_outlined),
+          label: const Text('Add crashpad'),
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckoutChargeDialog extends StatefulWidget {
+  const _CheckoutChargeDialog({
+    required this.booking,
+    required this.availableCharges,
+    required this.title,
+    required this.intro,
+    required this.actionLabel,
+  });
+
+  final BookingRecord booking;
+  final List<CrashpadCheckoutCharge> availableCharges;
+  final String title;
+  final String intro;
+  final String actionLabel;
+
+  @override
+  State<_CheckoutChargeDialog> createState() => _CheckoutChargeDialogState();
+}
+
+class _CheckoutCompletionDraft {
+  const _CheckoutCompletionDraft({
+    required this.charges,
+    required this.ownerNote,
+  });
+
+  final List<ChargeLineItem> charges;
+  final String ownerNote;
+}
+
+class _CheckoutChargeDialogState extends State<_CheckoutChargeDialog> {
+  final Set<String> _selectedChargeIds = <String>{};
+  final TextEditingController _ownerNoteController = TextEditingController();
+
+  @override
+  void dispose() {
+    _ownerNoteController.dispose();
+    super.dispose();
+  }
+
+  void _complete(List<ChargeLineItem> selectedCharges) {
+    final ownerNote = _ownerNoteController.text.trim();
+    final needsNote = selectedCharges.any(
+      (charge) =>
+          charge.type == ChargeType.cleaning ||
+          charge.type == ChargeType.lateCheckout ||
+          charge.type == ChargeType.checkout,
+    );
+    final needsDamageEvidence = selectedCharges.any(
+      (charge) =>
+          charge.type == ChargeType.damage || charge.type == ChargeType.custom,
+    );
+    final hasGuestPhoto = widget.booking.checkoutReport?.hasPhotos ?? false;
+
+    if (needsNote && ownerNote.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add an owner note for cleaning or late fees.'),
+        ),
+      );
+      return;
+    }
+    if (needsDamageEvidence && ownerNote.isEmpty && !hasGuestPhoto) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Damage and custom fees require guest photos or an owner note.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      _CheckoutCompletionDraft(
+        charges: selectedCharges,
+        ownerNote: ownerNote,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final report = widget.booking.checkoutReport;
+    final selectedCharges = widget.availableCharges
+        .where((charge) => _selectedChargeIds.contains(charge.id))
+        .map((charge) => charge.toLineItem())
+        .toList();
+    final preview = widget.booking.paymentSummary.copyWith(
+      checkoutCharges: selectedCharges,
+    );
+
+    return AlertDialog(
+      title: Text(widget.title),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(widget.intro),
+              const SizedBox(height: AppSpacing.lg),
+              _CheckoutEvidencePanel(report: report),
+              const SizedBox(height: AppSpacing.lg),
+              if (widget.availableCharges.isEmpty)
+                Text(
+                  'This listing has no configured checkout charges.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppPalette.textMuted),
+                )
+              else
+                ...widget.availableCharges.map((charge) {
+                  final selected = _selectedChargeIds.contains(charge.id);
+                  return CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: selected,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(charge.name),
+                    subtitle: Text(
+                      '${charge.description}  |  \$${charge.amount.toStringAsFixed(2)}',
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        if (value ?? false) {
+                          _selectedChargeIds.add(charge.id);
+                        } else {
+                          _selectedChargeIds.remove(charge.id);
+                        }
+                      });
+                    },
+                  );
+                }),
+              const SizedBox(height: AppSpacing.lg),
+              TextField(
+                controller: _ownerNoteController,
+                minLines: 3,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Owner checkout note',
+                  hintText:
+                      'Required when applying cleaning, late checkout, damage, or custom fees.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              PaymentSummaryCard(summary: preview, showStatus: false),
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: () => _complete(selectedCharges),
+          icon: const Icon(Icons.done_all_outlined),
+          label: Text(widget.actionLabel),
+        ),
+      ],
+    );
+  }
+}
+
+class _BookingPickerDialog extends StatelessWidget {
+  const _BookingPickerDialog({
+    required this.title,
+    required this.bookings,
+  });
+
+  final String title;
+  final List<BookingRecord> bookings;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(title),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 420),
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: bookings.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final booking = bookings[index];
+            return ListTile(
+              leading: const Icon(Icons.event_available_outlined),
+              title: Text(booking.crashpadName),
+              subtitle: Text('${booking.guestName} - ${booking.status.label}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pop(context, booking),
+            );
+          },
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManualAssignmentDraft {
+  const _ManualAssignmentDraft({
+    required this.bookingId,
+    required this.roomId,
+    required this.bedId,
+    required this.note,
+  });
+
+  final String bookingId;
+  final String roomId;
+  final String? bedId;
+  final String note;
+}
+
+class _ManualAssignmentDialog extends StatefulWidget {
+  const _ManualAssignmentDialog({
+    required this.bookings,
+    required this.listings,
+  });
+
+  final List<BookingRecord> bookings;
+  final List<Crashpad> listings;
+
+  @override
+  State<_ManualAssignmentDialog> createState() =>
+      _ManualAssignmentDialogState();
+}
+
+class _ManualAssignmentDialogState extends State<_ManualAssignmentDialog> {
+  late BookingRecord _selectedBooking;
+  String? _selectedRoomId;
+  String? _selectedBedId;
+  final TextEditingController _noteController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedBooking = widget.bookings.first;
+    _selectedRoomId = _listingFor(_selectedBooking)?.rooms.firstOrNull?.id;
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Crashpad? _listingFor(BookingRecord booking) {
+    for (final listing in widget.listings) {
+      if (listing.id == booking.crashpadId) return listing;
+    }
+    return null;
+  }
+
+  CrashpadRoom? _selectedRoom(Crashpad? listing) {
+    if (listing == null || _selectedRoomId == null) return null;
+    for (final room in listing.rooms) {
+      if (room.id == _selectedRoomId) return room;
+    }
+    return null;
+  }
+
+  void _submit() {
+    final roomId = _selectedRoomId;
+    if (roomId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a room before saving.')),
+      );
+      return;
+    }
+    Navigator.pop(
+      context,
+      _ManualAssignmentDraft(
+        bookingId: _selectedBooking.id,
+        roomId: roomId,
+        bedId: _selectedBedId,
+        note: _noteController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final listing = _listingFor(_selectedBooking);
+    final room = _selectedRoom(listing);
+    final beds = room?.beds
+            .where(
+              (bed) =>
+                  room.bedModel != CrashpadBedModel.cold ||
+                  (!bed.isAssigned && bed.isAvailable),
+            )
+            .toList() ??
+        const <CrashpadBed>[];
+    final requiresBed = room?.bedModel == CrashpadBedModel.cold;
+
+    return AlertDialog(
+      title: const Text('Manual assignment'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              DropdownButtonFormField<String>(
+                initialValue: _selectedBooking.id,
+                decoration: const InputDecoration(
+                  labelText: 'Booking',
+                  prefixIcon: Icon(Icons.event_available_outlined),
+                ),
+                items: widget.bookings
+                    .map(
+                      (booking) => DropdownMenuItem<String>(
+                        value: booking.id,
+                        child: Text(
+                            '${booking.guestName} - ${booking.crashpadName}'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  final booking = widget.bookings.firstWhere(
+                    (candidate) => candidate.id == value,
+                  );
+                  final nextListing = _listingFor(booking);
+                  setState(() {
+                    _selectedBooking = booking;
+                    _selectedRoomId = nextListing?.rooms.firstOrNull?.id;
+                    _selectedBedId = null;
+                  });
+                },
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedRoomId,
+                decoration: const InputDecoration(
+                  labelText: 'Room',
+                  prefixIcon: Icon(Icons.meeting_room_outlined),
+                ),
+                items: (listing?.rooms ?? const <CrashpadRoom>[])
+                    .map(
+                      (room) => DropdownMenuItem<String>(
+                        value: room.id,
+                        child:
+                            Text('${room.name} (${room.bedModel.shortLabel})'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedRoomId = value;
+                    _selectedBedId = null;
+                  });
+                },
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedBedId,
+                decoration: InputDecoration(
+                  labelText: requiresBed ? 'Bed' : 'Bed (optional)',
+                  prefixIcon: const Icon(Icons.bed_outlined),
+                ),
+                items: beds
+                    .map(
+                      (bed) => DropdownMenuItem<String>(
+                        value: bed.id,
+                        child: Text(bed.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _selectedBedId = value),
+                validator: (_) =>
+                    requiresBed && _selectedBedId == null ? 'Required' : null,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              TextField(
+                controller: _noteController,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Assignment note',
+                  hintText: 'Optional room, locker, or arrival context.',
+                ),
+              ),
+              if (requiresBed && beds.isEmpty) ...<Widget>[
+                const SizedBox(height: AppSpacing.md),
+                const Text('No available cold beds remain in this room.'),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: requiresBed && _selectedBedId == null ? null : _submit,
+          icon: const Icon(Icons.assignment_ind_outlined),
+          label: const Text('Save assignment'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CheckoutEvidencePanel extends StatelessWidget {
+  const _CheckoutEvidencePanel({required this.report});
+
+  final CheckoutReport? report;
+
+  @override
+  Widget build(BuildContext context) {
+    if (report == null) {
+      return CrashSurface(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
+        color: AppPalette.panelElevated.withValues(alpha: 0.42),
+        child: Row(
+          children: <Widget>[
+            const Icon(Icons.info_outline, color: AppPalette.warning),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                'No guest checkout report has been submitted.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: AppPalette.textMuted),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return CrashSurface(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
+      color: AppPalette.panelElevated.withValues(alpha: 0.42),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.fact_check_outlined, color: AppPalette.cyan),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  'Guest checkout report',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              StatusBadge(
+                label:
+                    '${report!.photos.length} photo${report!.photos.length == 1 ? '' : 's'}',
+                icon: Icons.photo_camera_outlined,
+                color: AppPalette.cyan,
+              ),
+            ],
+          ),
+          if (report!.notes.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpacing.md),
+            Text(report!.notes),
+          ],
+          if (report!.photos.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpacing.md),
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.md,
+              children: report!.photos.map((photo) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  child: Image.memory(
+                    base64Decode(photo.base64Data),
+                    height: 96,
+                    width: 128,
+                    fit: BoxFit.cover,
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -354,9 +1036,10 @@ class _OwnerHero extends StatelessWidget {
 }
 
 class _Metrics extends StatelessWidget {
-  const _Metrics({required this.listings});
+  const _Metrics({required this.listings, required this.bookings});
 
   final List<Crashpad> listings;
+  final List<BookingRecord> bookings;
 
   @override
   Widget build(BuildContext context) {
@@ -365,13 +1048,30 @@ class _Metrics extends StatelessWidget {
       0,
       (sum, listing) => sum + availability.summarize(listing).totalPhysicalBeds,
     );
-    final openCapacity = listings.fold<int>(
-      0,
-      (sum, listing) => sum + availability.summarize(listing).availableToBook,
+    final repository = context.watch<AppRepository>();
+    final tomorrow = DateUtils.dateOnly(DateTime.now()).add(
+      const Duration(days: 1),
     );
+    final openCapacity = listings.fold<int>(0, (sum, listing) {
+      return sum +
+          repository.availableCapacityForDates(
+            crashpad: listing,
+            checkInDate: tomorrow,
+            checkOutDate:
+                tomorrow.add(Duration(days: listing.minimumStayNights)),
+          );
+    });
     final activeGuests = listings.fold<int>(
       0,
-      (sum, listing) => sum + listing.totalActiveGuests,
+      (sum, listing) =>
+          sum +
+          bookings
+              .where(
+                (booking) =>
+                    booking.crashpadId == listing.id &&
+                    booking.status == BookingStatus.active,
+              )
+              .fold<int>(0, (total, booking) => total + booking.guestCount),
     );
     final estimatedPayout = _estimatedPayout(listings);
 
@@ -879,11 +1579,15 @@ class _WorkflowPanel extends StatelessWidget {
     required this.listings,
     required this.onCreateListing,
     required this.onDeleteListings,
+    required this.onCheckoutCharges,
+    required this.onManualAssignment,
   });
 
   final List<Crashpad> listings;
   final VoidCallback onCreateListing;
   final VoidCallback onDeleteListings;
+  final VoidCallback onCheckoutCharges;
+  final VoidCallback onManualAssignment;
 
   @override
   Widget build(BuildContext context) {
@@ -912,14 +1616,14 @@ class _WorkflowPanel extends StatelessWidget {
               title: 'Checkout charges',
               description:
                   'Cleaning, damage, late checkout, and custom charges are modeled.',
-              onTap: () {},
+              onTap: onCheckoutCharges,
             ),
             _WorkflowAction(
               icon: Icons.assignment_ind_outlined,
               title: 'Manual assignment',
               description:
                   'Cold-bed assignment and hot-bed capacity logic are separated from UI.',
-              onTap: () {},
+              onTap: onManualAssignment,
             ),
             _WorkflowAction(
               icon: Icons.delete_sweep_outlined,
@@ -983,48 +1687,11 @@ class _DashboardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: ResponsivePage(
-        maxWidth: 1240,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SkeletonBox(height: 200, radius: AppRadius.xxl),
-            const SizedBox(height: AppSpacing.xxl),
-            Row(
-              children: [
-                Expanded(
-                    child: _SkeletonBox(height: 100, radius: AppRadius.lg)),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: _SkeletonBox(height: 100, radius: AppRadius.lg)),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: _SkeletonBox(height: 100, radius: AppRadius.lg)),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xxxl),
-            _SkeletonBox(height: 300, radius: AppRadius.xl),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SkeletonBox extends StatelessWidget {
-  const _SkeletonBox({required this.height, required this.radius});
-  final double height;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppPalette.panelElevated.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(radius),
+    return const Center(
+      child: SizedBox(
+        height: 32,
+        width: 32,
+        child: CircularProgressIndicator(strokeWidth: 2.4),
       ),
     );
   }

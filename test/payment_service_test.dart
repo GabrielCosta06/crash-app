@@ -54,6 +54,55 @@ void main() {
       expect(service.authorizeMockPayment(summary).status,
           PaymentStatus.authorized);
       expect(service.captureMockPayment(summary).status, PaymentStatus.paid);
+      expect(
+          service
+              .refundMockPayment(service.authorizeMockPayment(summary))
+              .status,
+          PaymentStatus.refunded);
+      expect(
+        () => service.captureMockPayment(
+          summary.copyWith(status: PaymentStatus.refunded),
+        ),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('assessed checkout charges recalculate final totals before capture',
+        () {
+      const service = PaymentService();
+      final authorized = service.authorizeMockPayment(
+        const PaymentSummary(
+          bookingSubtotal: 200,
+          additionalServices: <ChargeLineItem>[
+            ChargeLineItem(
+              id: 'linen',
+              label: 'Linen',
+              amount: 20,
+              type: ChargeType.additionalService,
+            ),
+          ],
+          checkoutCharges: <ChargeLineItem>[],
+        ),
+      );
+
+      final assessed = service.assessCheckoutCharges(
+        authorized,
+        const <ChargeLineItem>[
+          ChargeLineItem(
+            id: 'cleaning',
+            label: 'Cleaning',
+            amount: 35,
+            type: ChargeType.cleaning,
+          ),
+        ],
+      );
+      final paid = service.captureMockPayment(assessed);
+
+      expect(paid.checkoutChargesTotal, 35);
+      expect(paid.totalChargedToGuest, 255);
+      expect(paid.platformFee, closeTo(255 * AppConfig.platformFeeRate, 0.01));
+      expect(paid.ownerPayout, closeTo(255 - paid.platformFee, 0.01));
+      expect(paid.status, PaymentStatus.paid);
     });
   });
 }

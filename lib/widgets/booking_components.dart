@@ -261,6 +261,33 @@ class BookingRecordCard extends StatelessWidget {
                 icon: Icons.payments_outlined,
                 color: AppPalette.success,
               ),
+              StatusBadge(
+                label: _paymentStatusLabel(booking.paymentSummary.status),
+                icon: Icons.account_balance_wallet_outlined,
+                color: _paymentStatusColor(booking.paymentSummary.status),
+              ),
+              if (booking.paymentSummary.checkoutChargesTotal > 0)
+                StatusBadge(
+                  label:
+                      '${_money.format(booking.paymentSummary.checkoutChargesTotal)} checkout',
+                  icon: Icons.receipt_long_outlined,
+                  color: AppPalette.warning,
+                ),
+              if (booking.hasManualAssignment)
+                StatusBadge(
+                  label: booking.assignedBedLabel == null
+                      ? 'Assigned: ${booking.assignedRoomName}'
+                      : 'Assigned: ${booking.assignedRoomName} / ${booking.assignedBedLabel}',
+                  icon: Icons.assignment_ind_outlined,
+                  color: AppPalette.blueSoft,
+                ),
+              if (booking.checkoutReport != null)
+                StatusBadge(
+                  label:
+                      'Checkout report ${booking.checkoutReport!.photos.length} photo${booking.checkoutReport!.photos.length == 1 ? '' : 's'}',
+                  icon: Icons.photo_camera_outlined,
+                  color: AppPalette.cyan,
+                ),
             ],
           ),
           if (primaryAction != null || secondaryAction != null) ...<Widget>[
@@ -277,6 +304,34 @@ class BookingRecordCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _paymentStatusLabel(PaymentStatus status) {
+    switch (status) {
+      case PaymentStatus.draft:
+        return 'Quote';
+      case PaymentStatus.authorized:
+        return 'Authorized';
+      case PaymentStatus.paid:
+        return 'Paid';
+      case PaymentStatus.failed:
+        return 'Payment failed';
+      case PaymentStatus.refunded:
+        return 'Refunded';
+    }
+  }
+
+  Color _paymentStatusColor(PaymentStatus status) {
+    switch (status) {
+      case PaymentStatus.paid:
+        return AppPalette.success;
+      case PaymentStatus.failed:
+      case PaymentStatus.refunded:
+        return AppPalette.danger;
+      case PaymentStatus.draft:
+      case PaymentStatus.authorized:
+        return AppPalette.blueSoft;
+    }
   }
 }
 

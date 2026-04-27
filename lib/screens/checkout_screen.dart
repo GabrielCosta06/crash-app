@@ -179,13 +179,13 @@ class _RequestReview extends StatelessWidget {
                       )
                     : const Icon(Icons.send_outlined),
                 label: Text(
-                  isSubmitting ? 'Sending request...' : 'Confirm & Pay Later',
+                  isSubmitting ? 'Sending request...' : 'Authorize & Request',
                 ),
               ),
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Mock checkout only. The owner approves the request before the stay is confirmed.',
+              'Mock checkout only. Your payment is authorized now and captured only after owner checkout completion.',
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
@@ -309,7 +309,7 @@ class _PendingConfirmation extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'The owner will approve or decline this request. You can cancel it from your booking history while it is pending.',
+            'The owner will approve or decline this request. Your payment authorization is held until checkout, and you can cancel it from your booking history while it is pending.',
             style: Theme.of(context)
                 .textTheme
                 .bodyLarge
