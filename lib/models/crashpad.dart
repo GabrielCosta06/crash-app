@@ -165,6 +165,8 @@ class Crashpad {
     this.checkoutCharges = const <CrashpadCheckoutCharge>[],
     this.minimumStayNights = 1,
     this.distanceToAirportMiles,
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
@@ -187,8 +189,12 @@ class Crashpad {
   final List<CrashpadCheckoutCharge> checkoutCharges;
   final int minimumStayNights;
   final double? distanceToAirportMiles;
+  final double? latitude;
+  final double? longitude;
 
   CrashpadBedModel get bedModel => crashpadBedModelFromLabel(bedType);
+
+  bool get hasMapCoordinates => latitude != null && longitude != null;
 
   int get totalPhysicalBeds =>
       rooms.fold<int>(0, (total, room) => total + room.physicalBeds);
@@ -230,6 +236,8 @@ class Crashpad {
       bedType: json['bed_type']?.toString() ?? 'Hot Bed',
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       clickCount: (json['click_count'] as int?) ?? 0,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
     );
   }
 
@@ -246,6 +254,8 @@ class Crashpad {
         'bed_type': bedType,
         'price': price,
         'click_count': clickCount,
+        'latitude': latitude,
+        'longitude': longitude,
       };
 
   Crashpad copyWith({
@@ -266,6 +276,8 @@ class Crashpad {
     List<CrashpadCheckoutCharge>? checkoutCharges,
     int? minimumStayNights,
     double? distanceToAirportMiles,
+    double? latitude,
+    double? longitude,
   }) {
     return Crashpad(
       id: id,
@@ -287,6 +299,8 @@ class Crashpad {
       minimumStayNights: minimumStayNights ?? this.minimumStayNights,
       distanceToAirportMiles:
           distanceToAirportMiles ?? this.distanceToAirportMiles,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
     );
   }
 }

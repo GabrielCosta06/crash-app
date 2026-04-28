@@ -3,9 +3,9 @@
     "short_name": "Crash App",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#050810",
-    "theme_color": "#050810",
-    "description": "Crashpad marketplace and owner operations dashboard for crew housing.",
+    "background_color": "#05070C",
+    "theme_color": "#05070C",
+    "description": "Crash App helps airline crew members find and book crashpads near U.S. airports.",
     "orientation": "any",
     "prefer_related_applications": false,
     "icons": [

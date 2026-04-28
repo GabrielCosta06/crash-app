@@ -125,6 +125,8 @@ class MockCrashpadSeed {
         ],
         minimumStayNights: 3,
         distanceToAirportMiles: 4.2,
+        latitude: 47.4697,
+        longitude: -122.3342,
       ),
       Crashpad(
         id: uuid.v4(),
@@ -191,6 +193,8 @@ class MockCrashpadSeed {
         ],
         minimumStayNights: 2,
         distanceToAirportMiles: 7.8,
+        latitude: 30.2419,
+        longitude: -97.7311,
       ),
       Crashpad(
         id: uuid.v4(),
@@ -273,6 +277,8 @@ class MockCrashpadSeed {
         ],
         minimumStayNights: 4,
         distanceToAirportMiles: 3.6,
+        latitude: 37.6497,
+        longitude: -122.4073,
       ),
     ];
   }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -18,20 +18,90 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Crash App is a crashpad marketplace and owner management platform for crew housing.">
+  <meta name="description" content="Crash App helps airline crew members find and book crashpads near U.S. airports. Browse crew-friendly stays, compare hot and cold beds, and manage crashpad bookings in one place.">
+  <meta name="keywords" content="airline crew crashpads, crashpad app, flight crew housing, pilot crashpads, flight attendant crashpads, crew rest housing, airport crashpads, airline housing, hot bed crashpad, cold bed crashpad, crashpads near airports">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#05070C">
+  <!-- Flutter Web injects its own viewport metadata. Do not add a viewport tag here. -->
+
+  <!-- TODO: Replace https://YOUR_DOMAIN.com with the final production domain before deployment. -->
+  <link rel="canonical" href="https://YOUR_DOMAIN.com/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Crash App">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="Crash App | Airline Crew Crashpads Near U.S. Airports">
+  <meta property="og:description" content="Find and book crew-friendly crashpads near U.S. airports. Compare hot beds, cold beds, availability, and crashpad booking details in one place.">
+  <!-- TODO: Replace with the final production homepage URL. -->
+  <meta property="og:url" content="https://YOUR_DOMAIN.com/">
+  <!-- TODO: Add a 1200x630 social preview image at web/social-preview.png and replace this URL with the production asset URL. -->
+  <meta property="og:image" content="https://YOUR_DOMAIN.com/social-preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Crash App map and crew crashpad booking preview">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Crash App | Airline Crew Crashpads Near U.S. Airports">
+  <meta name="twitter:description" content="Browse crew-friendly crashpads, compare hot and cold beds, and manage crashpad bookings near U.S. airports.">
+  <!-- TODO: Add a 1200x630 social preview image at web/social-preview.png and replace this URL with the production asset URL. -->
+  <meta name="twitter:image" content="https://YOUR_DOMAIN.com/social-preview.png">
+  <meta name="twitter:image:alt" content="Crash App map and crew crashpad booking preview">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Crash App">
+  <!-- TODO: Replace placeholder app icons in web/icons with final branded Crash App icons before deployment. -->
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
+  <!-- TODO: Replace web/favicon.png with the final branded favicon before deployment. -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>Crash App</title>
+  <title>Crash App | Airline Crew Crashpads Near U.S. Airports</title>
   <link rel="manifest" href="manifest.json">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://YOUR_DOMAIN.com/#website",
+        "name": "Crash App",
+        "url": "https://YOUR_DOMAIN.com/",
+        "description": "Crash App helps airline crew members find and book crashpads near U.S. airports, including hot bed and cold bed crashpad stays.",
+        "inLanguage": "en-US",
+        "audience": {
+          "@type": "Audience",
+          "audienceType": "Airline crew members in the United States"
+        },
+        "areaServed": {
+          "@type": "Country",
+          "name": "United States"
+        }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://YOUR_DOMAIN.com/#app",
+        "name": "Crash App",
+        "applicationCategory": "TravelApplication",
+        "operatingSystem": "Web",
+        "url": "https://YOUR_DOMAIN.com/",
+        "description": "A crashpad marketplace for airline crew members to discover, book, and manage crew-friendly housing near U.S. airports.",
+        "inLanguage": "en-US",
+        "audience": {
+          "@type": "Audience",
+          "audienceType": "Pilots, flight attendants, and airline crew members"
+        },
+        "areaServed": {
+          "@type": "Country",
+          "name": "United States"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

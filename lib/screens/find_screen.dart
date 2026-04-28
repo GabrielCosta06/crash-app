@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/airport_data.dart';
 import '../data/app_repository.dart';
 import '../models/crashpad.dart';
+import '../services/availability_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_components.dart';
+import '../widgets/crashpad_discovery_map.dart';
 import '../widgets/crashpad_listing_card.dart';
 
 class FindScreen extends StatefulWidget {
@@ -35,6 +38,10 @@ class _FindScreenState extends State<FindScreen>
 
   String _selectedBedType = 'All';
   String _selectedSort = 'Newest';
+  String _selectedAirport = 'All';
+  RangeValues? _priceRange;
+  DateTimeRange? _availabilityDates;
+  int _mapResetToken = 0;
   late final AnimationController _listAnimationController;
   bool _showInitialSkeleton = true;
   int _lastResultCount = 0;
@@ -73,11 +80,25 @@ class _FindScreenState extends State<FindScreen>
       ..forward();
   }
 
-  List<Crashpad> _results(List<Crashpad> crashpads) {
+  List<Crashpad> _results(AppRepository repository) {
     final query = _searchController.text.trim().toLowerCase();
+    final priceRange = _effectivePriceRange(repository.crashpads);
+    final availabilityDates = _availabilityDates;
+    final crashpads = repository.crashpads;
     final results = crashpads.where((crashpad) {
       final matchesBed =
           _selectedBedType == 'All' || crashpad.bedType == _selectedBedType;
+      final matchesAirport = _selectedAirport == 'All' ||
+          crashpad.nearestAirport.toUpperCase() == _selectedAirport;
+      final matchesPrice = crashpad.price >= priceRange.start &&
+          crashpad.price <= priceRange.end;
+      final matchesAvailability = availabilityDates == null ||
+          repository.availableCapacityForDates(
+                crashpad: crashpad,
+                checkInDate: availabilityDates.start,
+                checkOutDate: availabilityDates.end,
+              ) >
+              0;
       final matchesQuery = query.isEmpty ||
           <String>[
             crashpad.name,
@@ -86,7 +107,11 @@ class _FindScreenState extends State<FindScreen>
             crashpad.description,
             ...crashpad.amenities,
           ].join(' ').toLowerCase().contains(query);
-      return matchesBed && matchesQuery;
+      return matchesBed &&
+          matchesAirport &&
+          matchesPrice &&
+          matchesAvailability &&
+          matchesQuery;
     }).toList();
 
     switch (_selectedSort) {
@@ -105,10 +130,82 @@ class _FindScreenState extends State<FindScreen>
     return results;
   }
 
+  RangeValues _effectivePriceRange(List<Crashpad> crashpads) {
+    final bounds = _priceBounds(crashpads);
+    final current = _priceRange;
+    if (current == null) return bounds;
+    return RangeValues(
+      current.start.clamp(bounds.start, bounds.end).toDouble(),
+      current.end.clamp(bounds.start, bounds.end).toDouble(),
+    );
+  }
+
+  RangeValues _priceBounds(List<Crashpad> crashpads) {
+    if (crashpads.isEmpty) return const RangeValues(0, 500);
+    final prices = crashpads.map((crashpad) => crashpad.price).toList();
+    final minPrice = prices.reduce((a, b) => a < b ? a : b).floorToDouble();
+    final maxPrice = prices.reduce((a, b) => a > b ? a : b).ceilToDouble();
+    if (minPrice == maxPrice) return RangeValues(0, maxPrice + 50);
+    return RangeValues(minPrice, maxPrice);
+  }
+
+  int _availableCapacityFor(AppRepository repository, Crashpad crashpad) {
+    final dates = _availabilityDates;
+    if (dates != null) {
+      return repository.availableCapacityForDates(
+        crashpad: crashpad,
+        checkInDate: dates.start,
+        checkOutDate: dates.end,
+      );
+    }
+    return const AvailabilityService().summarize(crashpad).availableToBook;
+  }
+
+  void _showAllCrashpads() {
+    _searchController.clear();
+    setState(() {
+      _selectedAirport = 'All';
+      _selectedBedType = 'All';
+      _selectedSort = 'Newest';
+      _priceRange = null;
+      _availabilityDates = null;
+      _mapResetToken += 1;
+    });
+  }
+
+  Future<void> _pickAvailabilityDates() async {
+    final now = DateUtils.dateOnly(DateTime.now());
+    final selected = await showDateRangePicker(
+      context: context,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+      initialDateRange: _availabilityDates ??
+          DateTimeRange(
+            start: now.add(const Duration(days: 1)),
+            end: now.add(const Duration(days: 4)),
+          ),
+      builder: (context, child) => Theme(
+        data: Theme.of(context),
+        child: child ?? const SizedBox.shrink(),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _availabilityDates = selected);
+  }
+
+  String _dateRangeLabel() {
+    final dates = _availabilityDates;
+    if (dates == null) return 'Availability dates';
+    String format(DateTime date) => '${date.month}/${date.day}';
+    return '${format(dates.start)} - ${format(dates.end)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<AppRepository>();
-    final results = _results(repository.crashpads);
+    final results = _results(repository);
+    final priceBounds = _priceBounds(repository.crashpads);
+    final effectivePriceRange = _effectivePriceRange(repository.crashpads);
     if (results.length != _lastResultCount) {
       _lastResultCount = results.length;
       if (!_showInitialSkeleton) {
@@ -129,13 +226,10 @@ class _FindScreenState extends State<FindScreen>
                   title: 'Find a crashpad',
                   subtitle:
                       'Search by airport, city, amenity, price, and bed model.',
-                  trailing: Tooltip(
-                    message: 'Map search is not available in the mock build.',
-                    child: OutlinedButton.icon(
-                      onPressed: null,
-                      icon: const Icon(Icons.map_outlined),
-                      label: const Text('Map unavailable'),
-                    ),
+                  trailing: const StatusBadge(
+                    label: 'Crash App Map',
+                    icon: Icons.map_outlined,
+                    color: AppPalette.cyan,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -172,11 +266,52 @@ class _FindScreenState extends State<FindScreen>
                           }
                         },
                       );
+                      final airport = DropdownButtonFormField<String>(
+                        initialValue: _selectedAirport,
+                        decoration: const InputDecoration(
+                          labelText: 'Airport',
+                          prefixIcon: Icon(Icons.flight_takeoff_outlined),
+                        ),
+                        items: <DropdownMenuItem<String>>[
+                          const DropdownMenuItem<String>(
+                            value: 'All',
+                            child: Text('All airports'),
+                          ),
+                          ...AirportData.usAirports.map(
+                            (airport) => DropdownMenuItem<String>(
+                              value: airport.code,
+                              child: Text('${airport.code} - ${airport.city}'),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _selectedAirport = value);
+                        },
+                      );
+                      final dates = OutlinedButton.icon(
+                        onPressed: _pickAvailabilityDates,
+                        icon: const Icon(Icons.date_range_outlined),
+                        label: Text(_dateRangeLabel()),
+                      );
+                      final showAll = OutlinedButton.icon(
+                        onPressed: _showAllCrashpads,
+                        icon: const Icon(Icons.travel_explore_outlined),
+                        label: const Text('Show all crashpads'),
+                      );
+                      final price = _PriceRangeControl(
+                        range: effectivePriceRange,
+                        bounds: priceBounds,
+                        onChanged: (value) =>
+                            setState(() => _priceRange = value),
+                      );
 
                       if (!isWide) {
                         return Column(
                           children: <Widget>[
                             search,
+                            const SizedBox(height: AppSpacing.lg),
+                            airport,
                             const SizedBox(height: AppSpacing.lg),
                             sort,
                             const SizedBox(height: AppSpacing.lg),
@@ -185,6 +320,16 @@ class _FindScreenState extends State<FindScreen>
                               selected: _selectedBedType,
                               onSelected: (value) =>
                                   setState(() => _selectedBedType = value),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            price,
+                            const SizedBox(height: AppSpacing.lg),
+                            Row(
+                              children: <Widget>[
+                                Expanded(child: dates),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(child: showAll),
+                              ],
                             ),
                           ],
                         );
@@ -197,19 +342,58 @@ class _FindScreenState extends State<FindScreen>
                             children: <Widget>[
                               Expanded(flex: 3, child: search),
                               const SizedBox(width: AppSpacing.lg),
+                              Expanded(flex: 2, child: airport),
+                              const SizedBox(width: AppSpacing.lg),
                               Expanded(child: sort),
                             ],
                           ),
                           const SizedBox(height: AppSpacing.lg),
-                          _BedChoiceRow(
-                            bedTypes: _bedTypes,
-                            selected: _selectedBedType,
-                            onSelected: (value) =>
-                                setState(() => _selectedBedType = value),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Expanded(
+                                flex: 2,
+                                child: _BedChoiceRow(
+                                  bedTypes: _bedTypes,
+                                  selected: _selectedBedType,
+                                  onSelected: (value) => setState(
+                                    () => _selectedBedType = value,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.lg),
+                              Expanded(flex: 2, child: price),
+                              const SizedBox(width: AppSpacing.lg),
+                              dates,
+                              const SizedBox(width: AppSpacing.md),
+                              showAll,
+                            ],
                           ),
                         ],
                       );
                     },
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxl),
+                SectionHeading(
+                  title: 'Crash App Map',
+                  subtitle:
+                      'Compare crashpad locations against U.S. airport context.',
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                CrashpadDiscoveryMap(
+                  crashpads: results,
+                  resetToken: _mapResetToken,
+                  availabilityDates: _availabilityDates,
+                  availableCapacityForCrashpad: (crashpad) =>
+                      _availableCapacityFor(repository, crashpad),
+                  ratingForCrashpad: (crashpad) =>
+                      repository.calculateAverageRating(crashpad.id),
+                  onShowAll: _showAllCrashpads,
+                  onOpenCrashpad: (crashpad) => Navigator.pushNamed(
+                    context,
+                    '/owner-details',
+                    arguments: crashpad,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xxl),
@@ -225,8 +409,12 @@ class _FindScreenState extends State<FindScreen>
                       onPressed: () {
                         _searchController.clear();
                         setState(() {
+                          _selectedAirport = 'All';
                           _selectedBedType = 'All';
                           _selectedSort = 'Newest';
+                          _priceRange = null;
+                          _availabilityDates = null;
+                          _mapResetToken += 1;
                         });
                       },
                       icon: Icons.refresh_outlined,
@@ -248,6 +436,55 @@ class _FindScreenState extends State<FindScreen>
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PriceRangeControl extends StatelessWidget {
+  const _PriceRangeControl({
+    required this.range,
+    required this.bounds,
+    required this.onChanged,
+  });
+
+  final RangeValues range;
+  final RangeValues bounds;
+  final ValueChanged<RangeValues> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final divisions = (bounds.end - bounds.start).round().clamp(1, 500);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            const Icon(
+              Icons.attach_money_outlined,
+              color: AppPalette.textMuted,
+              size: 20,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                '\$${range.start.round()} - \$${range.end.round()}',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ),
+          ],
+        ),
+        RangeSlider(
+          values: range,
+          min: bounds.start,
+          max: bounds.end,
+          divisions: divisions,
+          labels: RangeLabels(
+            '\$${range.start.round()}',
+            '\$${range.end.round()}',
+          ),
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }
@@ -391,7 +628,7 @@ class _DesktopResultTable extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${crashpad.nearestAirport} - ${crashpad.location}',
+                                '${crashpad.nearestAirport} - ${crashpad.location}${crashpad.distanceToAirportMiles == null ? '' : ' - ${crashpad.distanceToAirportMiles!.toStringAsFixed(1)} mi'}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context)

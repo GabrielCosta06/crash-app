@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /account
+Disallow: /checkout
+Disallow: /subscribe
+Disallow: /management
+Disallow: /owner
+Disallow: /owner-details
+Disallow: /create_listing
+Disallow: /edit_listing
+Disallow: /delete_listings
+
+# TODO: Replace https://YOUR_DOMAIN.com with the final production domain before deployment.
+Sitemap: https://YOUR_DOMAIN.com/sitemap.xml

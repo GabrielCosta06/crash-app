@@ -182,6 +182,8 @@ class AppRepository extends ChangeNotifier {
         const <CrashpadCheckoutCharge>[],
     int minimumStayNights = 1,
     double? distanceToAirportMiles,
+    double? latitude,
+    double? longitude,
   }) async {
     final owner = _currentUser;
     if (owner == null || !owner.isOwner) {
@@ -210,6 +212,8 @@ class AppRepository extends ChangeNotifier {
       checkoutCharges: checkoutCharges,
       minimumStayNights: minimumStayNights,
       distanceToAirportMiles: distanceToAirportMiles,
+      latitude: latitude,
+      longitude: longitude,
     );
     _crashpads.insert(0, newCrashpad);
     notifyListeners();

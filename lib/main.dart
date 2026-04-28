@@ -182,7 +182,7 @@ class _MyAppState extends State<MyApp> {
       value: _repository,
       child: Consumer<AppRepository>(
         builder: (_, repository, __) => MaterialApp(
-          title: 'Crash App',
+          title: 'Crash App | Airline Crew Crashpads Near U.S. Airports',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.dark,
           darkTheme: AppTheme.dark,
