@@ -2,15 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// Provides a subtle scaling effect when the user presses on interactive widgets.
 class TapScale extends StatefulWidget {
   const TapScale({
     super.key,
     required this.child,
     this.enabled = true,
-    this.pressScale = 0.94,
-    this.duration = const Duration(milliseconds: 110),
-    this.curve = Curves.easeOut,
+    this.pressScale = 0.97,
+    this.duration = const Duration(milliseconds: 150),
+    this.curve = Curves.easeInOut,
   });
 
   final Widget child;
@@ -61,11 +63,7 @@ class _TapScaleState extends State<TapScale> {
 
 /// Animated back button that plays a quick scale effect before navigating back.
 class AnimatedBackButton extends StatelessWidget {
-  const AnimatedBackButton({
-    super.key,
-    this.onPressed,
-    this.pressScale = 0.88,
-  });
+  const AnimatedBackButton({super.key, this.onPressed, this.pressScale = 0.97});
 
   final VoidCallback? onPressed;
   final double pressScale;
@@ -74,10 +72,26 @@ class AnimatedBackButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return TapScale(
       pressScale: pressScale,
-      child: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-        onPressed: onPressed ?? () => Navigator.of(context).maybePop(),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: SizedBox.square(
+          dimension: 36,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppPalette.panelElevated,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppPalette.border),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              color: AppPalette.text,
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              onPressed: onPressed ?? () => Navigator.of(context).maybePop(),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -112,8 +126,10 @@ Future<void> showActionFeedback({
     },
     transitionBuilder: (context, animation, secondaryAnimation, child) {
       final fade = CurvedAnimation(parent: animation, curve: Curves.easeOut);
-      final scale =
-          CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+      final scale = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutBack,
+      );
       return FadeTransition(
         opacity: fade,
         child: ScaleTransition(

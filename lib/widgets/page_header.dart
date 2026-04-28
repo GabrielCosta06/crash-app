@@ -23,52 +23,36 @@ class PageHeader extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isLight = theme.brightness == Brightness.light;
 
     final gradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: isLight
-          ? <Color>[
-              AppPalette.lightSurface,
-              AppPalette.aurora.withValues(alpha: 0.12),
-            ]
-          : <Color>[
-              AppPalette.deepSpace.withValues(alpha: 0.92),
-              AppPalette.neonPulse.withValues(alpha: 0.12),
-            ],
+      colors: <Color>[
+        AppPalette.panel.withValues(alpha: 0.92),
+        AppPalette.cyan.withValues(alpha: 0.12),
+      ],
     );
 
-    final textColor = isLight ? AppPalette.lightText : Colors.white;
-    final subTextColor =
-        isLight ? AppPalette.lightTextSecondary : AppPalette.softSlate;
-    final accentBackground =
-        (isLight ? AppPalette.aurora : AppPalette.neonPulse)
-            .withValues(alpha: 0.16);
+    const textColor = AppPalette.text;
+    const subTextColor = AppPalette.textMuted;
+    final accentBackground = AppPalette.cyan.withValues(alpha: 0.16);
 
     return Material(
       color: Colors.transparent,
-      elevation: isLight ? 2 : 0,
+      elevation: 0,
       child: Container(
         decoration: BoxDecoration(
           gradient: gradient,
-          borderRadius:
-              const BorderRadius.vertical(bottom: Radius.circular(28)),
-          boxShadow: isLight
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: AppPalette.aurora.withValues(alpha: 0.12),
-                    offset: const Offset(0, 12),
-                    blurRadius: 24,
-                  ),
-                ]
-              : <BoxShadow>[
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.28),
-                    offset: const Offset(0, 18),
-                    blurRadius: 36,
-                  ),
-                ],
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(28),
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: AppPalette.ink.withValues(alpha: 0.28),
+              offset: const Offset(0, 18),
+              blurRadius: 36,
+            ),
+          ],
         ),
         child: SafeArea(
           bottom: false,

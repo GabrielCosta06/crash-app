@@ -86,7 +86,7 @@ class _MyAppState extends State<MyApp> {
     final isAuthenticated = _repository.isAuthenticated;
 
     if (!isAuthenticated && !allowWithoutAuth) {
-      return MaterialPageRoute<void>(
+      return AppPageRoute<void>(
         builder: (context) => LoginScreen(
           onAuthenticated: () =>
               Navigator.of(context).pushReplacementNamed(_landingRoute()),
@@ -98,7 +98,7 @@ class _MyAppState extends State<MyApp> {
     if (isAuthenticated &&
         _isOwnerOnlyRoute(destination) &&
         _repository.currentUser?.userType != AppUserType.owner) {
-      return MaterialPageRoute<void>(
+      return AppPageRoute<void>(
         builder: (context) => const MainScreen(),
         settings: const RouteSettings(name: '/home'),
       );
@@ -108,9 +108,9 @@ class _MyAppState extends State<MyApp> {
     switch (destination) {
       case '/login':
         builder = (context) => LoginScreen(
-              onAuthenticated: () =>
-                  Navigator.of(context).pushReplacementNamed(_landingRoute()),
-            );
+          onAuthenticated: () =>
+              Navigator.of(context).pushReplacementNamed(_landingRoute()),
+        );
         break;
       case '/signup':
         builder = (context) => const SignupScreen();
@@ -118,9 +118,9 @@ class _MyAppState extends State<MyApp> {
       case '/home':
         final args = settings.arguments;
         builder = (context) => MainScreen(
-              initialFindQuery: args is String ? args : null,
-              initialIndex: args is String ? 1 : 0,
-            );
+          initialFindQuery: args is String ? args : null,
+          initialIndex: args is String ? 1 : 0,
+        );
         break;
       case '/management':
       case '/owner':
@@ -152,12 +152,12 @@ class _MyAppState extends State<MyApp> {
         break;
       default:
         builder = (context) => LoginScreen(
-              onAuthenticated: () =>
-                  Navigator.of(context).pushReplacementNamed(_landingRoute()),
-            );
+          onAuthenticated: () =>
+              Navigator.of(context).pushReplacementNamed(_landingRoute()),
+        );
     }
 
-    return MaterialPageRoute<void>(builder: builder, settings: settings);
+    return AppPageRoute<void>(builder: builder, settings: settings);
   }
 
   @override
@@ -169,6 +169,8 @@ class _MyAppState extends State<MyApp> {
           title: 'Crash App',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.dark,
+          darkTheme: AppTheme.dark,
+          themeMode: ThemeMode.dark,
           initialRoute: _isAuthenticated ? _landingRoute() : '/login',
           onGenerateRoute: _generateRoute,
         ),
@@ -179,11 +181,7 @@ class _MyAppState extends State<MyApp> {
 
 /// Hosts the main app destinations behind adaptive mobile/web navigation.
 class MainScreen extends StatefulWidget {
-  const MainScreen({
-    super.key,
-    this.initialIndex = 0,
-    this.initialFindQuery,
-  });
+  const MainScreen({super.key, this.initialIndex = 0, this.initialFindQuery});
 
   final int initialIndex;
   final String? initialFindQuery;
@@ -224,13 +222,12 @@ class _MainScreenState extends State<MainScreen> {
     final canManage = repository.currentUser?.userType == AppUserType.owner;
     final destinations = <_Destination>[
       const _Destination(
-          icon: Icons.dashboard_customize_outlined, label: 'Home'),
+        icon: Icons.dashboard_customize_outlined,
+        label: 'Home',
+      ),
       const _Destination(icon: Icons.search_rounded, label: 'Find'),
       if (canManage)
-        const _Destination(
-          icon: Icons.analytics_outlined,
-          label: 'Management',
-        ),
+        const _Destination(icon: Icons.analytics_outlined, label: 'Management'),
       const _Destination(icon: Icons.person_outline, label: 'Account'),
     ];
     final managementIndex = canManage ? 2 : null;
@@ -260,9 +257,10 @@ class _MainScreenState extends State<MainScreen> {
         final page = AnimatedSwitcher(
           duration: _navAnimationDuration,
           transitionBuilder: (child, animation) {
-            final offsetTween =
-                Tween<Offset>(begin: const Offset(0.025, 0), end: Offset.zero)
-                    .chain(CurveTween(curve: Curves.easeOutCubic));
+            final offsetTween = Tween<Offset>(
+              begin: const Offset(0.025, 0),
+              end: Offset.zero,
+            ).chain(CurveTween(curve: Curves.easeOutCubic));
             return FadeTransition(
               opacity: animation,
               child: SlideTransition(
@@ -286,7 +284,6 @@ class _MainScreenState extends State<MainScreen> {
                   destinations: destinations,
                   onDestinationSelected: _onNavigationTapped,
                 ),
-                const VerticalDivider(width: 1),
                 Expanded(child: page),
               ],
             ),
@@ -297,87 +294,30 @@ class _MainScreenState extends State<MainScreen> {
           extendBody: true,
           body: page,
           bottomNavigationBar: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.xl,
+            ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final itemWidth = constraints.maxWidth / destinations.length;
-                  const horizontalInset = 8.0;
-                  const verticalInset = 4.0;
-                  final highlightLeft =
-                      itemWidth * safeIndex + horizontalInset / 2;
-                  final highlightWidth = itemWidth - horizontalInset;
-                  final theme = Theme.of(context);
-
-                  return Stack(
-                    children: [
-                      Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color:
-                                theme.bottomNavigationBarTheme.backgroundColor,
-                          ),
-                        ),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              child: NavigationBar(
+                selectedIndex: safeIndex,
+                onDestinationSelected: _onNavigationTapped,
+                destinations: destinations
+                    .map(
+                      (destination) => NavigationDestination(
+                        icon: Icon(destination.icon),
+                        label: destination.label,
                       ),
-                      AnimatedPositioned(
-                        duration: _navAnimationDuration,
-                        curve: Curves.easeOutCubic,
-                        left: highlightLeft,
-                        width: highlightWidth,
-                        top: verticalInset,
-                        bottom: verticalInset,
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary
-                                  .withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                        ),
-                      ),
-                      BottomNavigationBar(
-                        currentIndex: safeIndex,
-                        onTap: _onNavigationTapped,
-                        type: BottomNavigationBarType.fixed,
-                        backgroundColor: Colors.transparent,
-                        elevation: 0,
-                        items: List.generate(
-                          destinations.length,
-                          (index) =>
-                              _navItem(destinations[index], index, safeIndex),
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                    )
+                    .toList(),
               ),
             ),
           ),
         );
       },
-    );
-  }
-
-  /// Builds an animated navigation item that subtly scales when selected.
-  BottomNavigationBarItem _navItem(
-    _Destination destination,
-    int index,
-    int selectedIndex,
-  ) {
-    final isSelected = index == selectedIndex;
-    return BottomNavigationBarItem(
-      icon: AnimatedScale(
-        duration: const Duration(milliseconds: 200),
-        scale: isSelected ? 1.08 : 1.0,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
-          opacity: isSelected ? 1.0 : 0.7,
-          child: Icon(destination.icon),
-        ),
-      ),
-      label: destination.label,
     );
   }
 }
@@ -397,8 +337,12 @@ class _SidebarNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       right: false,
-      child: SizedBox(
+      child: Container(
         width: 248,
+        decoration: const BoxDecoration(
+          color: AppPalette.midnight,
+          border: Border(right: BorderSide(color: AppPalette.border)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -431,12 +375,13 @@ class _SidebarNavigation extends StatelessWidget {
                       final user = repo.currentUser;
                       if (user == null) return const SizedBox.shrink();
                       return StatusBadge(
-                        label: user.isOwner ? 'OWNER' : 'CREW',
+                        label: user.isOwner ? 'OWNER' : 'GUEST',
                         icon: user.isOwner
                             ? Icons.business_center_outlined
                             : Icons.flight_outlined,
-                        color:
-                            user.isOwner ? AppPalette.warning : AppPalette.cyan,
+                        color: user.isOwner
+                            ? AppPalette.cyan
+                            : AppPalette.blueSoft,
                       );
                     },
                   ),

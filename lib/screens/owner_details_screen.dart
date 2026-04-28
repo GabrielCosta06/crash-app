@@ -59,7 +59,8 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
     if (user == null || user.userType != AppUserType.employee) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Only verified guests can write reviews.')),
+          content: Text('Only verified guests can write reviews.'),
+        ),
       );
       return;
     }
@@ -118,9 +119,9 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
       _crashpad = updated;
       _reviewsFuture = _fetchReviews();
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Listing changes saved.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Listing changes saved.')));
   }
 
   Future<void> _messageOwner() async {
@@ -138,19 +139,16 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
     );
     if (text == null || text.trim().isEmpty) return;
     try {
-      await repository.startMessageThread(
-        crashpadId: _crashpad.id,
-        text: text,
-      );
+      await repository.startMessageThread(crashpadId: _crashpad.id, text: text);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Message sent to the owner.')),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not send message: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not send message: $error')));
     }
   }
 
@@ -158,7 +156,8 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
   Widget build(BuildContext context) {
     final repository = context.watch<AppRepository>();
     final isEmployee = repository.currentUser?.userType == AppUserType.employee;
-    final isOwner = repository.currentUser?.email.toLowerCase() ==
+    final isOwner =
+        repository.currentUser?.email.toLowerCase() ==
         _crashpad.owner.contact?.toLowerCase();
     final averageRating = repository.calculateAverageRating(_crashpad.id);
     final availability = const AvailabilityService().summarize(_crashpad);
@@ -237,7 +236,8 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: isEmployee &&
+      bottomNavigationBar:
+          isEmployee &&
               MediaQuery.sizeOf(context).width < AppBreakpoints.desktop
           ? Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
@@ -245,7 +245,7 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
                 color: AppPalette.panel,
                 border: const Border(top: BorderSide(color: AppPalette.border)),
               ),
-              child: ElevatedButton(
+              child: AppPrimaryButton(
                 onPressed: () {
                   if (_bookingPanelKey.currentContext != null) {
                     Scrollable.ensureVisible(
@@ -287,8 +287,8 @@ class _ListingHero extends StatelessWidget {
                 imageUrls: crashpad.imageUrls,
                 height:
                     MediaQuery.sizeOf(context).width >= AppBreakpoints.tablet
-                        ? 430
-                        : 280,
+                    ? 430
+                    : 280,
                 width: double.infinity,
                 heroTag: 'crashpad-${crashpad.id}',
               ),
@@ -299,8 +299,8 @@ class _ListingHero extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: <Color>[
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.74),
+                        AppPalette.ink.withValues(alpha: 0),
+                        AppPalette.ink.withValues(alpha: 0.6),
                       ],
                     ),
                   ),
@@ -337,16 +337,15 @@ class _ListingHero extends StatelessWidget {
                     const SizedBox(height: 16),
                     Text(
                       crashpad.name,
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
+                      style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(color: AppPalette.text),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '${crashpad.location} | Nearest airport: ${crashpad.nearestAirport}',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppPalette.text.withValues(alpha: 0.86)),
+                        color: AppPalette.text.withValues(alpha: 0.86),
+                      ),
                     ),
                   ],
                 ),
@@ -407,9 +406,9 @@ class _BookingPanelState extends State<_BookingPanel> {
   @override
   void initState() {
     super.initState();
-    _checkInDate = DateUtils.dateOnly(DateTime.now()).add(
-      const Duration(days: 1),
-    );
+    _checkInDate = DateUtils.dateOnly(
+      DateTime.now(),
+    ).add(const Duration(days: 1));
     _checkOutDate = _checkInDate.add(
       Duration(days: widget.crashpad.minimumStayNights),
     );
@@ -429,7 +428,8 @@ class _BookingPanelState extends State<_BookingPanel> {
 
     return BookingDraft(
       crashpadId: widget.crashpad.id,
-      guestId: guest?.id ??
+      guestId:
+          guest?.id ??
           (throw StateError('Sign in as a guest to request this stay.')),
       nightlyRate: widget.crashpad.price,
       checkInDate: _checkInDate,
@@ -520,8 +520,9 @@ class _BookingPanelState extends State<_BookingPanel> {
     );
     final selected = await showDatePicker(
       context: context,
-      initialDate:
-          _checkOutDate.isBefore(firstDate) ? firstDate : _checkOutDate,
+      initialDate: _checkOutDate.isBefore(firstDate)
+          ? firstDate
+          : _checkOutDate,
       firstDate: firstDate,
       lastDate: _checkInDate.add(const Duration(days: 365)),
       helpText: 'Select check-out',
@@ -554,10 +555,9 @@ class _BookingPanelState extends State<_BookingPanel> {
           const SizedBox(height: 6),
           Text(
             widget.crashpad.bedModel.guestExplanation,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppPalette.textMuted),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
           ),
           const SizedBox(height: AppSpacing.xl),
           Column(
@@ -588,10 +588,9 @@ class _BookingPanelState extends State<_BookingPanel> {
                 dateAwareCapacity == availability.availableToBook
                     ? '$dateAwareCapacity spaces available for selected dates.'
                     : '$dateAwareCapacity spaces remain after existing requests for selected dates.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppPalette.textMuted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
               ),
             ],
           ),
@@ -638,10 +637,10 @@ class _BookingPanelState extends State<_BookingPanel> {
               message: availability.hasAvailability
                   ? ''
                   : 'No beds available for the selected dates.',
-              child: ElevatedButton.icon(
+              child: AppPrimaryButton(
                 onPressed: dateAwareCapacity > 0 ? _startCheckout : null,
-                icon: const Icon(Icons.send_outlined),
-                label: const Text('Request Booking'),
+                icon: Icons.send_outlined,
+                child: const Text('Request Booking'),
               ),
             ),
           ),
@@ -676,10 +675,9 @@ class _StepperField extends StatelessWidget {
         children: <Widget>[
           Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppPalette.textMuted),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
           ),
           const SizedBox(height: 8),
           Row(
@@ -789,8 +787,10 @@ class _DescriptionBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('What guests get',
-              style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'What guests get',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 12),
           Text(crashpad.description),
           const SizedBox(height: AppSpacing.xl),
@@ -824,8 +824,10 @@ class _RulesAndFeesBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Rules and checkout charges',
-              style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Rules and checkout charges',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 12),
           ...crashpad.houseRules.map(
             (rule) => _BulletLine(icon: Icons.rule_outlined, text: rule),
@@ -867,8 +869,8 @@ class _RoomsSection extends StatelessWidget {
             final columns = constraints.maxWidth >= AppBreakpoints.desktop
                 ? 3
                 : constraints.maxWidth >= AppBreakpoints.tablet
-                    ? 2
-                    : 1;
+                ? 2
+                : 1;
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -879,9 +881,8 @@ class _RoomsSection extends StatelessWidget {
                 crossAxisSpacing: 16,
                 childAspectRatio: columns == 1 ? 1.55 : 1.2,
               ),
-              itemBuilder: (context, index) => _RoomCard(
-                room: crashpad.rooms[index],
-              ),
+              itemBuilder: (context, index) =>
+                  _RoomCard(room: crashpad.rooms[index]),
             );
           },
         ),
@@ -905,8 +906,10 @@ class _RoomCard extends StatelessWidget {
           Row(
             children: <Widget>[
               Expanded(
-                child: Text(room.name,
-                    style: Theme.of(context).textTheme.titleMedium),
+                child: Text(
+                  room.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
               StatusBadge(label: room.bedModel.shortLabel),
             ],
@@ -917,8 +920,9 @@ class _RoomCard extends StatelessWidget {
             text: '${room.physicalBeds} physical beds',
           ),
           _BulletLine(
-            icon:
-                isHot ? Icons.groups_2_outlined : Icons.assignment_ind_outlined,
+            icon: isHot
+                ? Icons.groups_2_outlined
+                : Icons.assignment_ind_outlined,
             text: isHot
                 ? '${room.availableHotSlots} hot-bed slots open'
                 : '${room.availableColdBeds} assigned beds open',
@@ -929,7 +933,9 @@ class _RoomCard extends StatelessWidget {
           ),
           if (room.storageNote != null)
             _BulletLine(
-                icon: Icons.inventory_2_outlined, text: room.storageNote!),
+              icon: Icons.inventory_2_outlined,
+              text: room.storageNote!,
+            ),
         ],
       ),
     );
@@ -1022,10 +1028,9 @@ class _ReviewTile extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             _formatDate(review.createdAt),
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppPalette.textMuted),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
           ),
         ],
       ),
@@ -1045,8 +1050,10 @@ class _TrustSignals extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Trust and Verification',
-              style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Trust and Verification',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -1056,7 +1063,9 @@ class _TrustSignals extends StatelessWidget {
                 child: Text(
                   crashpad.owner.name.substring(0, 1).toUpperCase(),
                   style: const TextStyle(
-                      color: AppPalette.blue, fontWeight: FontWeight.bold),
+                    color: AppPalette.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -1080,8 +1089,10 @@ class _TrustSignals extends StatelessWidget {
                 icon: const Icon(Icons.chat_bubble_outline, size: 18),
                 label: const Text('Message'),
                 style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   minimumSize: const Size(0, 0),
                 ),
               ),
@@ -1181,10 +1192,7 @@ class _MessageOwnerDialogState extends State<_MessageOwnerDialog> {
 }
 
 class _FactPill extends StatelessWidget {
-  const _FactPill({
-    required this.icon,
-    required this.label,
-  });
+  const _FactPill({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -1196,10 +1204,7 @@ class _FactPill extends StatelessWidget {
 }
 
 class _BulletLine extends StatelessWidget {
-  const _BulletLine({
-    required this.icon,
-    required this.text,
-  });
+  const _BulletLine({required this.icon, required this.text});
 
   final IconData icon;
   final String text;

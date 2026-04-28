@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_components.dart';
 import '../widgets/interaction_feedback.dart';
 
 /// Collects new user details and guides them into the product.
@@ -35,8 +36,9 @@ class _SignupScreenState extends State<SignupScreen> {
   String? _errorMessage;
 
   Future<void> _pickDate() async {
-    final DateTime initial =
-        DateTime.now().subtract(const Duration(days: 365 * 25));
+    final DateTime initial = DateTime.now().subtract(
+      const Duration(days: 365 * 25),
+    );
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -86,29 +88,14 @@ class _SignupScreenState extends State<SignupScreen> {
     } on AuthException catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = error.message);
-      _showMessage(error.message, isError: true);
     } catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = 'Unexpected error: $error');
-      _showMessage('Unable to create account. Please try again.',
-          isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  void _showMessage(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError
-            ? AppPalette.danger
-            : AppPalette.aurora.withValues(alpha: 0.9),
-      ),
-    );
   }
 
   @override
@@ -148,32 +135,30 @@ class _SignupScreenState extends State<SignupScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(28),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(32),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.1),
+                              color: AppPalette.panelElevated.withValues(
+                                alpha: 0.72,
                               ),
+                              borderRadius: BorderRadius.circular(32),
+                              border: Border.all(color: AppPalette.border),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-	                                Text(
-	                                  'Join the network',
-	                                  style: GoogleFonts.spaceGrotesk(
-	                                    textStyle: Theme.of(context)
-	                                        .textTheme
-	                                        .headlineSmall
-	                                        ?.copyWith(fontWeight: FontWeight.w700),
-	                                  ),
-	                                ),
-	                                const SizedBox(height: 8),
-	                                Text(
-	                                  'Register as a guest to book verified stays, or as an owner to manage your properties.',
-	                                  style: Theme.of(context)
-	                                      .textTheme
-	                                      .bodyMedium
-	                                      ?.copyWith(color: AppPalette.softSlate),
-	                                ),
+                                Text(
+                                  'Join the network',
+                                  style: GoogleFonts.spaceGrotesk(
+                                    textStyle: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Register as a guest to book verified stays, or as an owner to manage your properties.',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(color: AppPalette.softSlate),
+                                ),
                                 const SizedBox(height: 24),
                                 Form(
                                   key: _formKey,
@@ -185,11 +170,13 @@ class _SignupScreenState extends State<SignupScreen> {
                                             child: DropdownMenu<AppUserType>(
                                               initialSelection: _userType,
                                               label: const Text(
-                                                  'I am registering as'),
+                                                'I am registering as',
+                                              ),
                                               onSelected: (value) {
                                                 if (value == null) return;
                                                 setState(
-                                                    () => _userType = value);
+                                                  () => _userType = value,
+                                                );
                                               },
                                               dropdownMenuEntries: const [
                                                 DropdownMenuEntry(
@@ -216,9 +203,9 @@ class _SignupScreenState extends State<SignupScreen> {
                                               ),
                                               validator: (value) =>
                                                   value == null ||
-                                                          value.trim().isEmpty
-                                                      ? 'First name is required'
-                                                      : null,
+                                                      value.trim().isEmpty
+                                                  ? 'First name is required'
+                                                  : null,
                                             ),
                                           ),
                                           const SizedBox(width: 16),
@@ -230,9 +217,9 @@ class _SignupScreenState extends State<SignupScreen> {
                                               ),
                                               validator: (value) =>
                                                   value == null ||
-                                                          value.trim().isEmpty
-                                                      ? 'Last name is required'
-                                                      : null,
+                                                      value.trim().isEmpty
+                                                  ? 'Last name is required'
+                                                  : null,
                                             ),
                                           ),
                                         ],
@@ -242,8 +229,9 @@ class _SignupScreenState extends State<SignupScreen> {
                                         controller: _emailController,
                                         decoration: const InputDecoration(
                                           labelText: 'Email address',
-                                          prefixIcon:
-                                              Icon(Icons.alternate_email),
+                                          prefixIcon: Icon(
+                                            Icons.alternate_email,
+                                          ),
                                         ),
                                         keyboardType:
                                             TextInputType.emailAddress,
@@ -263,12 +251,14 @@ class _SignupScreenState extends State<SignupScreen> {
                                         decoration: InputDecoration(
                                           labelText: 'Password',
                                           prefixIcon: const Icon(
-                                              Icons.password_outlined),
+                                            Icons.password_outlined,
+                                          ),
                                           suffixIcon: IconButton(
+                                            color: AppPalette.textSubtle,
                                             icon: Icon(
                                               _obscurePassword
                                                   ? Icons
-                                                      .visibility_off_outlined
+                                                        .visibility_off_outlined
                                                   : Icons.visibility_outlined,
                                             ),
                                             onPressed: () => setState(
@@ -296,9 +286,9 @@ class _SignupScreenState extends State<SignupScreen> {
                                               ),
                                               validator: (value) =>
                                                   value == null ||
-                                                          value.trim().isEmpty
-                                                      ? 'Required'
-                                                      : null,
+                                                      value.trim().isEmpty
+                                                  ? 'Required'
+                                                  : null,
                                             ),
                                           ),
                                           const SizedBox(width: 16),
@@ -309,14 +299,15 @@ class _SignupScreenState extends State<SignupScreen> {
                                               onTap: _pickDate,
                                               decoration: const InputDecoration(
                                                 labelText: 'Date of birth',
-                                                suffixIcon:
-                                                    Icon(Icons.event_outlined),
+                                                suffixIcon: Icon(
+                                                  Icons.event_outlined,
+                                                ),
                                               ),
                                               validator: (value) =>
                                                   value == null ||
-                                                          value.trim().isEmpty
-                                                      ? 'Select your birth date'
-                                                      : null,
+                                                      value.trim().isEmpty
+                                                  ? 'Select your birth date'
+                                                  : null,
                                             ),
                                           ),
                                         ],
@@ -333,11 +324,11 @@ class _SignupScreenState extends State<SignupScreen> {
                                                         _companyController,
                                                     decoration:
                                                         const InputDecoration(
-                                                      labelText:
-                                                          'Airline / company',
-                                                    ),
-                                                    validator: (value) => value ==
-                                                                null ||
+                                                          labelText:
+                                                              'Airline / company',
+                                                        ),
+                                                    validator: (value) =>
+                                                        value == null ||
                                                             value.trim().isEmpty
                                                         ? 'Required for crew access'
                                                         : null,
@@ -350,11 +341,11 @@ class _SignupScreenState extends State<SignupScreen> {
                                                         _badgeController,
                                                     decoration:
                                                         const InputDecoration(
-                                                      labelText:
-                                                          'Crew badge ID',
-                                                    ),
-                                                    validator: (value) => value ==
-                                                                null ||
+                                                          labelText:
+                                                              'Crew badge ID',
+                                                        ),
+                                                    validator: (value) =>
+                                                        value == null ||
                                                             value.trim().isEmpty
                                                         ? 'Enter your badge number'
                                                         : null,
@@ -367,24 +358,22 @@ class _SignupScreenState extends State<SignupScreen> {
                                       const SizedBox(height: 24),
                                       SizedBox(
                                         width: double.infinity,
-                                        child: TapScale(
-                                          enabled: !_isLoading,
-                                          child: ElevatedButton(
-                                            onPressed: _isLoading
-                                                ? null
-                                                : _handleSignup,
-                                            child: _isLoading
-                                                ? const SizedBox(
-                                                    height: 20,
-                                                    width: 20,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                                  )
-                                                : const Text(
-                                                    'Create my Crashpad account'),
-                                          ),
+                                        child: AppPrimaryButton(
+                                          onPressed: _isLoading
+                                              ? null
+                                              : _handleSignup,
+                                          child: _isLoading
+                                              ? const SizedBox(
+                                                  height: 20,
+                                                  width: 20,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : const Text(
+                                                  'Create my Crashpad account',
+                                                ),
                                         ),
                                       ),
                                       const SizedBox(height: 16),
@@ -396,16 +385,19 @@ class _SignupScreenState extends State<SignupScreen> {
                                           );
                                         },
                                         child: const Text(
-                                            'Already registered? Sign in'),
+                                          'Already registered? Sign in',
+                                        ),
                                       ),
                                       if (_errorMessage != null)
                                         Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 16),
+                                          padding: const EdgeInsets.only(
+                                            top: 16,
+                                          ),
                                           child: Text(
                                             _errorMessage!,
                                             style: const TextStyle(
                                               color: AppPalette.danger,
+                                              fontSize: 12,
                                             ),
                                           ),
                                         ),
@@ -440,10 +432,7 @@ class _SignupBackground extends StatelessWidget {
         gradient: RadialGradient(
           center: Alignment.topLeft,
           radius: 1.2,
-          colors: [
-            Color(0xFF1B2240),
-            Color(0xFF080B15),
-          ],
+          colors: [AppPalette.panelElevated, AppPalette.midnight],
         ),
       ),
     );
@@ -458,10 +447,8 @@ class _SignupHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
-    final bool isDark = theme.brightness == Brightness.dark;
-    final Color headlineColor =
-        isDark ? AppPalette.softWhite : AppPalette.midnight;
-    final Color supportingColor = isDark ? Colors.white70 : Colors.black87;
+    const headlineColor = AppPalette.text;
+    const supportingColor = AppPalette.textMuted;
     return Padding(
       padding: const EdgeInsets.only(right: 24),
       child: Column(
@@ -492,9 +479,7 @@ class _SignupHero extends StatelessWidget {
                 const SizedBox(height: 16),
                 Text(
                   'Zero-lag Wi-Fi mesh | Neuroadaptive lighting | Smart sleep pods | Secure biometric entry | Seamless owner analytics',
-                  style: TextStyle(
-                    color: supportingColor,
-                  ),
+                  style: TextStyle(color: supportingColor),
                 ),
               ],
             ),

@@ -14,6 +14,7 @@ import '../services/payment_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_components.dart';
 import '../widgets/booking_components.dart';
+import '../widgets/interaction_feedback.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
   const OwnerDashboardScreen({super.key});
@@ -118,9 +119,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         charges: draft.charges,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Checkout charges saved.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Checkout charges saved.')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,10 +162,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
 
     final draft = await showDialog<_ManualAssignmentDraft>(
       context: context,
-      builder: (context) => _ManualAssignmentDialog(
-        bookings: bookings,
-        listings: listings,
-      ),
+      builder: (context) =>
+          _ManualAssignmentDialog(bookings: bookings, listings: listings),
     );
     if (draft == null) return;
     try {
@@ -175,9 +174,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         assignmentNote: draft.note,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Manual assignment saved.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Manual assignment saved.')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -194,8 +193,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     var ownerCheckoutNote = '';
     if (status == BookingStatus.completed) {
       final listing = context.read<AppRepository>().findCrashpadById(
-            booking.crashpadId,
-          );
+        booking.crashpadId,
+      );
       final completion = await showDialog<_CheckoutCompletionDraft>(
         context: context,
         builder: (context) => _CheckoutChargeDialog(
@@ -260,14 +259,14 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           throw StateError('Unsupported owner booking transition.');
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Stay moved to ${status.label}.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Stay moved to ${status.label}.')));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update stay: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not update stay: $error')));
     } finally {
       if (mounted) {
         setState(() => _updatingBookingId = null);
@@ -512,10 +511,7 @@ class _CheckoutChargeDialogState extends State<_CheckoutChargeDialog> {
 
     Navigator.pop(
       context,
-      _CheckoutCompletionDraft(
-        charges: selectedCharges,
-        ownerNote: ownerNote,
-      ),
+      _CheckoutCompletionDraft(charges: selectedCharges, ownerNote: ownerNote),
     );
   }
 
@@ -546,10 +542,9 @@ class _CheckoutChargeDialogState extends State<_CheckoutChargeDialog> {
               if (widget.availableCharges.isEmpty)
                 Text(
                   'This listing has no configured checkout charges.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppPalette.textMuted),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
                 )
               else
                 ...widget.availableCharges.map((charge) {
@@ -606,10 +601,7 @@ class _CheckoutChargeDialogState extends State<_CheckoutChargeDialog> {
 }
 
 class _BookingPickerDialog extends StatelessWidget {
-  const _BookingPickerDialog({
-    required this.title,
-    required this.bookings,
-  });
+  const _BookingPickerDialog({required this.title, required this.bookings});
 
   final String title;
   final List<BookingRecord> bookings;
@@ -731,7 +723,8 @@ class _ManualAssignmentDialogState extends State<_ManualAssignmentDialog> {
   Widget build(BuildContext context) {
     final listing = _listingFor(_selectedBooking);
     final room = _selectedRoom(listing);
-    final beds = room?.beds
+    final beds =
+        room?.beds
             .where(
               (bed) =>
                   room.bedModel != CrashpadBedModel.cold ||
@@ -760,7 +753,8 @@ class _ManualAssignmentDialogState extends State<_ManualAssignmentDialog> {
                       (booking) => DropdownMenuItem<String>(
                         value: booking.id,
                         child: Text(
-                            '${booking.guestName} - ${booking.crashpadName}'),
+                          '${booking.guestName} - ${booking.crashpadName}',
+                        ),
                       ),
                     )
                     .toList(),
@@ -788,8 +782,9 @@ class _ManualAssignmentDialogState extends State<_ManualAssignmentDialog> {
                     .map(
                       (room) => DropdownMenuItem<String>(
                         value: room.id,
-                        child:
-                            Text('${room.name} (${room.bedModel.shortLabel})'),
+                        child: Text(
+                          '${room.name} (${room.bedModel.shortLabel})',
+                        ),
                       ),
                     )
                     .toList(),
@@ -871,10 +866,9 @@ class _CheckoutEvidencePanel extends StatelessWidget {
             Expanded(
               child: Text(
                 'No guest checkout report has been submitted.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: AppPalette.textMuted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppPalette.textMuted),
               ),
             ),
           ],
@@ -936,10 +930,7 @@ class _CheckoutEvidencePanel extends StatelessWidget {
 }
 
 class _OwnerHero extends StatelessWidget {
-  const _OwnerHero({
-    required this.owner,
-    required this.listings,
-  });
+  const _OwnerHero({required this.owner, required this.listings});
 
   final AppUser owner;
   final List<Crashpad> listings;
@@ -969,10 +960,9 @@ class _OwnerHero extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 'Built for multi-property crashpad operators: track capacity, preserve hot/cold bed rules, preview payouts, and keep checkout charges transparent.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyLarge
-                    ?.copyWith(color: AppPalette.textMuted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: AppPalette.textMuted),
               ),
             ],
           );
@@ -993,15 +983,16 @@ class _OwnerHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(owner.displayName,
-                          style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        owner.displayName,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         '${listings.length} active properties',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppPalette.textMuted),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppPalette.textMuted,
+                        ),
                       ),
                     ],
                   ),
@@ -1049,16 +1040,17 @@ class _Metrics extends StatelessWidget {
       (sum, listing) => sum + availability.summarize(listing).totalPhysicalBeds,
     );
     final repository = context.watch<AppRepository>();
-    final tomorrow = DateUtils.dateOnly(DateTime.now()).add(
-      const Duration(days: 1),
-    );
+    final tomorrow = DateUtils.dateOnly(
+      DateTime.now(),
+    ).add(const Duration(days: 1));
     final openCapacity = listings.fold<int>(0, (sum, listing) {
       return sum +
           repository.availableCapacityForDates(
             crashpad: listing,
             checkInDate: tomorrow,
-            checkOutDate:
-                tomorrow.add(Duration(days: listing.minimumStayNights)),
+            checkOutDate: tomorrow.add(
+              Duration(days: listing.minimumStayNights),
+            ),
           );
     });
     final activeGuests = listings.fold<int>(
@@ -1080,8 +1072,8 @@ class _Metrics extends StatelessWidget {
         final columns = constraints.maxWidth >= AppBreakpoints.desktop
             ? 4
             : constraints.maxWidth >= AppBreakpoints.tablet
-                ? 2
-                : 1;
+            ? 2
+            : 1;
         final metrics = <MetricCard>[
           MetricCard(
             label: 'Physical beds',
@@ -1127,9 +1119,9 @@ class _Metrics extends StatelessWidget {
   static double _estimatedPayout(List<Crashpad> listings) {
     final paymentService = const PaymentService();
     return listings.fold<double>(0, (sum, listing) {
-      final checkIn = DateUtils.dateOnly(DateTime.now()).add(
-        const Duration(days: 1),
-      );
+      final checkIn = DateUtils.dateOnly(
+        DateTime.now(),
+      ).add(const Duration(days: 1));
       final checkOut = checkIn.add(Duration(days: listing.minimumStayNights));
       final summary = paymentService.buildSummary(
         BookingDraft(
@@ -1200,77 +1192,77 @@ class _InventoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summary = const AvailabilityService().summarize(listing);
-    return InkWell(
-      onTap: () => Navigator.pushNamed(
-        context,
-        '/owner-details',
-        arguments: listing,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < AppBreakpoints.tablet;
-            final title = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(listing.name,
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 5),
-                Text(
-                  '${listing.nearestAirport} | ${listing.location}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppPalette.textMuted),
-                ),
-              ],
-            );
-            final facts = Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: <Widget>[
-                StatusBadge(label: listing.bedModel.shortLabel),
-                StatusBadge(
-                  label: '${summary.availableToBook} open',
-                  icon: Icons.event_available_outlined,
-                  color: AppPalette.success,
-                ),
-                StatusBadge(
-                  label: '${listing.totalActiveGuests} active',
-                  icon: Icons.groups_2_outlined,
-                  color: AppPalette.blueSoft,
-                ),
-                StatusBadge(
-                  label: '\$${listing.price.toStringAsFixed(0)}/night',
-                  icon: Icons.payments_outlined,
-                  color: AppPalette.warning,
-                ),
-              ],
-            );
-
-            if (compact) {
-              return Column(
+    return TapScale(
+      child: InkWell(
+        onTap: () =>
+            Navigator.pushNamed(context, '/owner-details', arguments: listing),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < AppBreakpoints.tablet;
+              final title = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  title,
-                  const SizedBox(height: AppSpacing.lg),
-                  facts,
+                  Text(
+                    listing.name,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '${listing.nearestAirport} | ${listing.location}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppPalette.textMuted,
+                    ),
+                  ),
                 ],
               );
-            }
+              final facts = Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: <Widget>[
+                  StatusBadge(label: listing.bedModel.shortLabel),
+                  StatusBadge(
+                    label: '${summary.availableToBook} open',
+                    icon: Icons.event_available_outlined,
+                    color: AppPalette.success,
+                  ),
+                  StatusBadge(
+                    label: '${listing.totalActiveGuests} active',
+                    icon: Icons.groups_2_outlined,
+                    color: AppPalette.blueSoft,
+                  ),
+                  StatusBadge(
+                    label: '\$${listing.price.toStringAsFixed(0)}/night',
+                    icon: Icons.payments_outlined,
+                    color: AppPalette.warning,
+                  ),
+                ],
+              );
 
-            return Row(
-              children: <Widget>[
-                Expanded(flex: 3, child: title),
-                const SizedBox(width: AppSpacing.lg),
-                Expanded(flex: 4, child: facts),
-                const Icon(Icons.chevron_right, color: AppPalette.textMuted),
-              ],
-            );
-          },
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    title,
+                    const SizedBox(height: AppSpacing.lg),
+                    facts,
+                  ],
+                );
+              }
+
+              return Row(
+                children: <Widget>[
+                  Expanded(flex: 3, child: title),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(flex: 4, child: facts),
+                  const Icon(Icons.chevron_right, color: AppPalette.textMuted),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -1289,11 +1281,12 @@ class _PayoutPanel extends StatelessWidget {
     final summary = primary == null
         ? null
         : () {
-            final checkIn = DateUtils.dateOnly(DateTime.now()).add(
-              const Duration(days: 1),
+            final checkIn = DateUtils.dateOnly(
+              DateTime.now(),
+            ).add(const Duration(days: 1));
+            final checkOut = checkIn.add(
+              Duration(days: primary.minimumStayNights),
             );
-            final checkOut =
-                checkIn.add(Duration(days: primary.minimumStayNights));
             return paymentService.buildSummary(
               BookingDraft(
                 crashpadId: primary.id,
@@ -1317,10 +1310,10 @@ class _PayoutPanel extends StatelessWidget {
             title: 'No payout preview yet',
             message:
                 'Set a nightly rate for your listing to preview your expected payout.',
-            action: TextButton.icon(
+            action: AppPrimaryButton(
               onPressed: () {},
-              icon: const Icon(Icons.add),
-              label: const Text('Add your first crashpad'),
+              icon: Icons.add,
+              child: const Text('Add your first crashpad'),
             ),
           ),
         const SizedBox(height: AppSpacing.xxl),
@@ -1328,15 +1321,16 @@ class _PayoutPanel extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Payout calculation',
-                  style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Payout calculation',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 10),
               Text(
                 'Calculated from the current nightly rate, each listing minimum stay, and centralized ${(AppConfig.platformFeeRate * 100).toStringAsFixed(0)}% Crash App fee. Payment capture remains mocked until Stripe is connected.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppPalette.textMuted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
               ),
             ],
           ),
@@ -1356,7 +1350,7 @@ class _BookingWorkflowPanel extends StatelessWidget {
   final List<BookingRecord> bookings;
   final String? updatingBookingId;
   final Future<void> Function(BookingRecord booking, BookingStatus status)
-      onSetStatus;
+  onSetStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -1466,15 +1460,12 @@ class _OwnerBookingList extends StatelessWidget {
   final String emptyMessage;
   final String? updatingBookingId;
   final Future<void> Function(BookingRecord booking, BookingStatus status)
-      onSetStatus;
+  onSetStatus;
 
   @override
   Widget build(BuildContext context) {
     if (bookings.isEmpty) {
-      return BookingEmptyState(
-        title: emptyTitle,
-        message: emptyMessage,
-      );
+      return BookingEmptyState(title: emptyTitle, message: emptyMessage);
     }
 
     return ListView.separated(
@@ -1656,25 +1647,27 @@ class _WorkflowAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 280,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        child: CrashSurface(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Icon(icon, color: AppPalette.blueSoft),
-              const SizedBox(height: 14),
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 6),
-              Text(
-                description,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppPalette.textMuted),
-              ),
-            ],
+      child: TapScale(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          child: CrashSurface(
+            radius: AppRadius.lg,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(icon, color: AppPalette.blueSoft),
+                const SizedBox(height: 14),
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 6),
+                Text(
+                  description,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1687,12 +1680,56 @@ class _DashboardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: SizedBox(
-        height: 32,
-        width: 32,
-        child: CircularProgressIndicator(strokeWidth: 2.4),
+    return const SafeArea(
+      child: SingleChildScrollView(
+        child: ResponsivePage(
+          maxWidth: 1240,
+          child: AppShimmer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                ShimmerBox(height: 148, width: double.infinity),
+                SizedBox(height: AppSpacing.xl),
+                _DashboardMetricSkeletonGrid(),
+                SizedBox(height: AppSpacing.xxl),
+                ShimmerBox(height: 280, width: double.infinity),
+                SizedBox(height: AppSpacing.xxl),
+                ShimmerBox(height: 360, width: double.infinity),
+              ],
+            ),
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _DashboardMetricSkeletonGrid extends StatelessWidget {
+  const _DashboardMetricSkeletonGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= AppBreakpoints.desktop
+            ? 4
+            : constraints.maxWidth >= AppBreakpoints.tablet
+            ? 2
+            : 1;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: 4,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisSpacing: AppSpacing.lg,
+            crossAxisSpacing: AppSpacing.lg,
+            childAspectRatio: columns == 1 ? 2.7 : 1.55,
+          ),
+          itemBuilder: (context, index) =>
+              const ShimmerBox(height: 120, width: double.infinity),
+        );
+      },
     );
   }
 }

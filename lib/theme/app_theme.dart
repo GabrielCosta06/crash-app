@@ -71,9 +71,9 @@ class AppGradients {
 
   static const LinearGradient hero = LinearGradient(
     colors: <Color>[
-      Color(0xFF101A2C),
-      Color(0xFF0A1120),
-      Color(0xFF05070C),
+      AppPalette.panelElevated,
+      AppPalette.midnight,
+      AppPalette.ink,
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -103,51 +103,53 @@ class AppTheme {
       colorScheme: colorScheme,
     );
 
-    final textTheme = GoogleFonts.interTextTheme(baseTheme.textTheme).apply(
-      bodyColor: AppPalette.text,
-      displayColor: AppPalette.text,
-    );
+    final textTheme = GoogleFonts.interTextTheme(
+      baseTheme.textTheme,
+    ).apply(bodyColor: AppPalette.text, displayColor: AppPalette.text);
 
     return baseTheme.copyWith(
-      scaffoldBackgroundColor: AppPalette.ink,
+      scaffoldBackgroundColor: AppPalette.midnight,
       primaryColor: AppPalette.blue,
       textTheme: textTheme.copyWith(
         displaySmall: textTheme.displaySmall?.copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w600,
           letterSpacing: 0,
           height: 1.05,
         ),
         headlineMedium: textTheme.headlineMedium?.copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w600,
           letterSpacing: 0,
           height: 1.1,
         ),
         headlineSmall: textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           letterSpacing: 0,
         ),
         titleLarge: textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           letterSpacing: 0,
         ),
         titleMedium: textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           letterSpacing: 0,
         ),
         bodyLarge: textTheme.bodyLarge?.copyWith(
           height: 1.5,
           color: AppPalette.text.withValues(alpha: 0.9),
+          fontWeight: FontWeight.w400,
         ),
         bodyMedium: textTheme.bodyMedium?.copyWith(
           height: 1.5,
           color: AppPalette.text.withValues(alpha: 0.84),
+          fontWeight: FontWeight.w400,
         ),
         bodySmall: textTheme.bodySmall?.copyWith(
           height: 1.45,
           color: AppPalette.textMuted,
+          fontWeight: FontWeight.w400,
         ),
         labelLarge: textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w500,
           letterSpacing: 0,
         ),
       ),
@@ -155,7 +157,15 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         foregroundColor: AppPalette.text,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
+        iconTheme: IconThemeData(color: AppPalette.text, size: 22),
+        actionsIconTheme: IconThemeData(color: AppPalette.text, size: 22),
+        titleTextStyle: TextStyle(
+          color: AppPalette.text,
+          fontWeight: FontWeight.w600,
+          fontSize: 18,
+        ),
       ),
       cardTheme: CardThemeData(
         color: AppPalette.panel,
@@ -171,23 +181,42 @@ class AppTheme {
         thickness: 1,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppPalette.blue,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.md),
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return AppPalette.borderStrong;
+            }
+            return AppPalette.blue;
+          }),
+          foregroundColor: WidgetStateProperty.all(AppPalette.text),
+          elevation: WidgetStateProperty.all(0),
+          overlayColor: WidgetStateProperty.all(
+            AppPalette.text.withValues(alpha: 0.08),
+          ),
+          minimumSize: WidgetStateProperty.all(const Size(48, 52)),
+          padding: WidgetStateProperty.all(
+            const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.lg,
+            ),
+          ),
+          textStyle: WidgetStateProperty.all(
+            const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+          ),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppPalette.text,
-          minimumSize: const Size(48, 48),
-          side: const BorderSide(color: AppPalette.borderStrong),
+          backgroundColor: Colors.transparent,
+          foregroundColor: AppPalette.blue,
+          minimumSize: const Size(48, 52),
+          side: const BorderSide(color: AppPalette.blue, width: 1.5),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
@@ -196,40 +225,47 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppPalette.blueSoft,
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontWeight: FontWeight.w500),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppPalette.panelElevated.withValues(alpha: 0.72),
+        fillColor: AppPalette.panel,
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.lg,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppPalette.border),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppPalette.border, width: 1),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppPalette.border),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppPalette.border, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppPalette.blue, width: 1.4),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppPalette.blue, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppPalette.danger),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppPalette.danger, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppPalette.danger, width: 1.5),
         ),
         labelStyle: const TextStyle(color: AppPalette.textMuted),
+        floatingLabelStyle: const TextStyle(color: AppPalette.blueSoft),
+        errorStyle: const TextStyle(color: AppPalette.danger, fontSize: 12),
         hintStyle: const TextStyle(color: AppPalette.textSubtle),
         prefixIconColor: AppPalette.textMuted,
-        suffixIconColor: AppPalette.textMuted,
+        suffixIconColor: AppPalette.textSubtle,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: AppPalette.panelElevated,
-        selectedColor: AppPalette.blue.withValues(alpha: 0.2),
+        backgroundColor: AppPalette.panel,
+        selectedColor: AppPalette.blue,
         disabledColor: AppPalette.panel,
         labelStyle: const TextStyle(color: AppPalette.textMuted),
         secondaryLabelStyle: const TextStyle(color: AppPalette.text),
@@ -240,19 +276,39 @@ class AppTheme {
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppPalette.panel,
-        selectedItemColor: AppPalette.text,
+        selectedItemColor: AppPalette.blue,
         unselectedItemColor: AppPalette.textSubtle,
         showSelectedLabels: true,
         showUnselectedLabels: true,
         elevation: 0,
       ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppPalette.panel,
+        indicatorColor: AppPalette.blue.withValues(alpha: 0.2),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? AppPalette.blue
+                : AppPalette.textSubtle,
+            size: 22,
+          ),
+        ),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            color: states.contains(WidgetState.selected)
+                ? AppPalette.blue
+                : AppPalette.textSubtle,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
       navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: AppPalette.panel.withValues(alpha: 0.82),
-        selectedIconTheme: const IconThemeData(color: AppPalette.text),
+        backgroundColor: AppPalette.midnight,
+        selectedIconTheme: const IconThemeData(color: AppPalette.blue),
         unselectedIconTheme: const IconThemeData(color: AppPalette.textSubtle),
         selectedLabelTextStyle: const TextStyle(
-          color: AppPalette.text,
-          fontWeight: FontWeight.w700,
+          color: AppPalette.blue,
+          fontWeight: FontWeight.w500,
         ),
         unselectedLabelTextStyle: const TextStyle(color: AppPalette.textSubtle),
         indicatorColor: AppPalette.blue.withValues(alpha: 0.18),

@@ -8,6 +8,7 @@ import '../data/app_repository.dart';
 import '../models/crashpad.dart';
 import '../theme/app_theme.dart';
 import 'app_components.dart';
+import 'interaction_feedback.dart';
 
 class CrashpadListingCard extends StatelessWidget {
   const CrashpadListingCard({
@@ -23,140 +24,164 @@ class CrashpadListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final checkIn = DateUtils.dateOnly(DateTime.now()).add(
-      const Duration(days: 1),
-    );
+    final checkIn = DateUtils.dateOnly(
+      DateTime.now(),
+    ).add(const Duration(days: 1));
     final checkOut = checkIn.add(Duration(days: crashpad.minimumStayNights));
-    final dateAwareCapacity =
-        context.watch<AppRepository>().availableCapacityForDates(
-              crashpad: crashpad,
-              checkInDate: checkIn,
-              checkOutDate: checkOut,
-            );
+    final dateAwareCapacity = context
+        .watch<AppRepository>()
+        .availableCapacityForDates(
+          crashpad: crashpad,
+          checkInDate: checkIn,
+          checkOutDate: checkOut,
+        );
     final imageHeight = compact ? 132.0 : 190.0;
+    final isUrgent = dateAwareCapacity <= 1;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.xl),
-      child: CrashSurface(
-        padding: EdgeInsets.zero,
-        radius: AppRadius.xl,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppRadius.xl),
-              ),
-              child: Stack(
-                children: <Widget>[
-                  CrashpadImage(
-                    imageUrls: crashpad.imageUrls,
-                    height: imageHeight,
-                    width: double.infinity,
-                    heroTag: compact ? null : 'crashpad-${crashpad.id}',
+    return TapScale(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: isUrgent
+                ? const Border(
+                    left: BorderSide(color: AppPalette.warning, width: 3),
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+          ),
+          child: CrashSurface(
+            padding: EdgeInsets.zero,
+            radius: AppRadius.lg,
+            color: AppPalette.panel,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(AppRadius.lg),
                   ),
-                  Positioned(
-                    left: 12,
-                    top: 12,
-                    child: StatusBadge(
-                      label: crashpad.bedModel.shortLabel,
-                      icon: Icons.bed_outlined,
-                      color: crashpad.bedModel == CrashpadBedModel.cold
-                          ? AppPalette.success
-                          : AppPalette.blueSoft,
-                    ),
+                  child: Stack(
+                    children: <Widget>[
+                      CrashpadImage(
+                        imageUrls: crashpad.imageUrls,
+                        height: imageHeight,
+                        width: double.infinity,
+                        heroTag: compact ? null : 'crashpad-${crashpad.id}',
+                      ),
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: <Color>[
+                                AppPalette.ink.withValues(alpha: 0),
+                                AppPalette.ink.withValues(alpha: 0.6),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: AppSpacing.md,
+                        top: AppSpacing.md,
+                        child: StatusBadge(
+                          label: crashpad.bedModel.shortLabel,
+                          icon: Icons.bed_outlined,
+                          color: crashpad.bedModel == CrashpadBedModel.cold
+                              ? AppPalette.success
+                              : AppPalette.blueSoft,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          crashpad.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              crashpad.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '\$${crashpad.price.toStringAsFixed(0)}',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(color: AppPalette.blueSoft),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _cityLine(crashpad.location),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppPalette.textMuted,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Text(
-                        '\$${crashpad.price.toStringAsFixed(0)}',
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: AppPalette.blueSoft,
-                                ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: <Widget>[
+                          _MiniFact(
+                            icon: Icons.local_airport_outlined,
+                            label: crashpad.nearestAirport,
+                          ),
+                          _MiniFact(
+                            icon: Icons.king_bed_outlined,
+                            label: '$dateAwareCapacity open',
+                            color: isUrgent ? AppPalette.warning : null,
+                          ),
+                          if (crashpad.distanceToAirportMiles != null)
+                            _MiniFact(
+                              icon: Icons.route_outlined,
+                              label:
+                                  '${crashpad.distanceToAirportMiles!.toStringAsFixed(1)} mi',
+                            ),
+                          const _MiniFact(
+                            icon: Icons.verified_user_outlined,
+                            label: 'Verified',
+                            color: AppPalette.success,
+                            verified: true,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(height: 1),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${crashpad.houseRules.length} house rules',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          Text(
+                            'View details',
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(color: AppPalette.blueSoft),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _cityLine(crashpad.location),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppPalette.textMuted),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      _MiniFact(
-                        icon: Icons.local_airport_outlined,
-                        label: crashpad.nearestAirport,
-                      ),
-                      _MiniFact(
-                        icon: Icons.king_bed_outlined,
-                        label: '$dateAwareCapacity open',
-                        color:
-                            dateAwareCapacity <= 1 ? AppPalette.danger : null,
-                      ),
-                      if (crashpad.distanceToAirportMiles != null)
-                        _MiniFact(
-                          icon: Icons.route_outlined,
-                          label:
-                              '${crashpad.distanceToAirportMiles!.toStringAsFixed(1)} mi',
-                        ),
-                      _MiniFact(
-                        icon: Icons.verified_user_outlined,
-                        label: 'Verified',
-                        color: AppPalette.success,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(height: 1),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${crashpad.houseRules.length} house rules',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      Text(
-                        'View details',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelLarge
-                            ?.copyWith(color: AppPalette.blueSoft),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -198,8 +223,10 @@ class CrashpadImage extends StatelessWidget {
         width: width,
         height: height,
         color: AppPalette.panelElevated,
-        child:
-            const Icon(Icons.apartment_outlined, color: AppPalette.textSubtle),
+        child: const Icon(
+          Icons.apartment_outlined,
+          color: AppPalette.textSubtle,
+        ),
       );
     }
 
@@ -242,22 +269,30 @@ class _MiniFact extends StatelessWidget {
     required this.icon,
     required this.label,
     this.color,
+    this.verified = false,
   });
 
   final IconData icon;
   final String label;
   final Color? color;
+  final bool verified;
 
   @override
   Widget build(BuildContext context) {
     final effectiveColor = color ?? AppPalette.textMuted;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      padding: EdgeInsets.symmetric(
+        horizontal: verified ? AppSpacing.sm : 9,
+        vertical: verified ? 6 : 7,
+      ),
       decoration: BoxDecoration(
-        color: color?.withValues(alpha: 0.1) ?? AppPalette.panelElevated,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        color: verified
+            ? AppPalette.success.withValues(alpha: 0.15)
+            : color?.withValues(alpha: 0.1) ?? AppPalette.panelElevated,
+        borderRadius: BorderRadius.circular(verified ? 6 : AppRadius.sm),
         border: Border.all(
-            color: color?.withValues(alpha: 0.2) ?? AppPalette.border),
+          color: color?.withValues(alpha: 0.2) ?? AppPalette.border,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -266,10 +301,11 @@ class _MiniFact extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(color: effectiveColor),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: effectiveColor,
+              fontSize: verified ? 11 : null,
+              fontWeight: verified ? FontWeight.w600 : null,
+            ),
           ),
         ],
       ),

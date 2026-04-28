@@ -50,8 +50,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       );
       return;
     }
-    if (!widget.arguments.draft.checkOutDate
-        .isAfter(widget.arguments.draft.checkInDate)) {
+    if (!widget.arguments.draft.checkOutDate.isAfter(
+      widget.arguments.draft.checkInDate,
+    )) {
       setState(
         () => _error = 'Choose a check-out date after the check-in date.',
       );
@@ -94,9 +95,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final booking = _booking;
     return Scaffold(
       appBar: AppBar(
-        leading: AnimatedBackButton(
-          onPressed: _isSubmitting ? () {} : _finish,
-        ),
+        leading: AnimatedBackButton(onPressed: _isSubmitting ? () {} : _finish),
         title: Text(booking == null ? 'Review booking' : 'Request sent'),
       ),
       body: SafeArea(
@@ -169,27 +168,28 @@ class _RequestReview extends StatelessWidget {
             const SizedBox(height: AppSpacing.xl),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
+              child: AppPrimaryButton(
                 onPressed: isSubmitting ? null : onRequest,
-                icon: isSubmitting
+                icon: isSubmitting ? null : Icons.send_outlined,
+                child: isSubmitting
                     ? const SizedBox(
                         height: 18,
                         width: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.send_outlined),
-                label: Text(
-                  isSubmitting ? 'Sending request...' : 'Authorize & Request',
-                ),
+                    : Text(
+                        isSubmitting
+                            ? 'Sending request...'
+                            : 'Authorize & Request',
+                      ),
               ),
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
               'Mock checkout only. Your payment is authorized now and captured only after owner checkout completion.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppPalette.textMuted),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
             ),
           ],
         );
@@ -242,10 +242,9 @@ class _StayReviewCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '${crashpad.location} • ${crashpad.nearestAirport}',
-            style: Theme.of(context)
-                .textTheme
-                .bodyLarge
-                ?.copyWith(color: AppPalette.textMuted),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: AppPalette.textMuted),
           ),
           const Divider(height: 34),
           _FactRow(
@@ -277,8 +276,11 @@ class _StayReviewCard extends StatelessWidget {
 }
 
 class _PendingConfirmation extends StatelessWidget {
-  const _PendingConfirmation(
-      {super.key, required this.booking, required this.onDone});
+  const _PendingConfirmation({
+    super.key,
+    required this.booking,
+    required this.onDone,
+  });
 
   final BookingRecord booking;
   final VoidCallback onDone;
@@ -310,10 +312,9 @@ class _PendingConfirmation extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'The owner will approve or decline this request. Your payment authorization is held until checkout, and you can cancel it from your booking history while it is pending.',
-            style: Theme.of(context)
-                .textTheme
-                .bodyLarge
-                ?.copyWith(color: AppPalette.textMuted),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: AppPalette.textMuted),
           ),
           const SizedBox(height: AppSpacing.xxl),
           BookingRecordCard(
@@ -323,10 +324,10 @@ class _PendingConfirmation extends StatelessWidget {
           const SizedBox(height: AppSpacing.xxl),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
+            child: AppPrimaryButton(
               onPressed: onDone,
-              icon: const Icon(Icons.arrow_back_outlined),
-              label: const Text('Back to listing'),
+              icon: Icons.arrow_back_outlined,
+              child: const Text('Back to listing'),
             ),
           ),
         ],
@@ -357,10 +358,9 @@ class _FactRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppPalette.textMuted),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
             ),
           ),
           Text(value, style: Theme.of(context).textTheme.bodyMedium),

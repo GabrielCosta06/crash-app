@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../data/app_repository.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_components.dart';
 import '../widgets/interaction_feedback.dart';
 
 /// Authentication entry point featuring animated feedback and polished UI.
@@ -65,27 +66,14 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthException catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = error.message);
-      _showMessage(error.message, isError: true);
     } catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = 'Unexpected error: $error');
-      _showMessage('Something went wrong. Please try again.', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  void _showMessage(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError
-            ? AppPalette.danger
-            : AppPalette.aurora.withValues(alpha: 0.9),
-      ),
-    );
   }
 
   @override
@@ -120,15 +108,16 @@ class _LoginScreenState extends State<LoginScreen> {
                             padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(28),
-                              color: Colors.white.withValues(alpha: 0.05),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.08),
+                              color: AppPalette.panelElevated.withValues(
+                                alpha: 0.72,
                               ),
+                              border: Border.all(color: AppPalette.border),
                             ),
                             child: SingleChildScrollView(
                               padding: EdgeInsets.only(
-                                bottom:
-                                    MediaQuery.of(context).viewInsets.bottom,
+                                bottom: MediaQuery.of(
+                                  context,
+                                ).viewInsets.bottom,
                               ),
                               keyboardDismissBehavior:
                                   ScrollViewKeyboardDismissBehavior.onDrag,
@@ -146,8 +135,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                           controller: _emailController,
                                           decoration: const InputDecoration(
                                             labelText: 'Flight crew email',
-                                            prefixIcon:
-                                                Icon(Icons.alternate_email),
+                                            prefixIcon: Icon(
+                                              Icons.alternate_email,
+                                            ),
                                           ),
                                           keyboardType:
                                               TextInputType.emailAddress,
@@ -166,15 +156,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                           obscureText: _obscurePassword,
                                           decoration: InputDecoration(
                                             labelText: 'Passcode',
-                                            prefixIcon:
-                                                const Icon(Icons.lock_outline),
+                                            prefixIcon: const Icon(
+                                              Icons.lock_outline,
+                                            ),
                                             suffixIcon: IconButton(
                                               onPressed:
                                                   _togglePasswordVisibility,
+                                              color: AppPalette.textSubtle,
                                               icon: Icon(
                                                 _obscurePassword
                                                     ? Icons
-                                                        .visibility_off_outlined
+                                                          .visibility_off_outlined
                                                     : Icons.visibility_outlined,
                                               ),
                                             ),
@@ -201,30 +193,29 @@ class _LoginScreenState extends State<LoginScreen> {
                                               );
                                             },
                                             child: const Text(
-                                                'Forgot access code?'),
+                                              'Forgot access code?',
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(height: 8),
                                         SizedBox(
                                           width: double.infinity,
-                                          child: TapScale(
-                                            enabled: !_isLoading,
-                                            child: ElevatedButton(
-                                              onPressed: _isLoading
-                                                  ? null
-                                                  : _handleLogin,
-                                              child: _isLoading
-                                                  ? const SizedBox(
-                                                      height: 20,
-                                                      width: 20,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                      ),
-                                                    )
-                                                  : const Text(
-                                                      'Sign in securely'),
-                                            ),
+                                          child: AppPrimaryButton(
+                                            onPressed: _isLoading
+                                                ? null
+                                                : _handleLogin,
+                                            child: _isLoading
+                                                ? const SizedBox(
+                                                    height: 20,
+                                                    width: 20,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                        ),
+                                                  )
+                                                : const Text(
+                                                    'Sign in securely',
+                                                  ),
                                           ),
                                         ),
                                         const SizedBox(height: 16),
@@ -241,13 +232,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ),
                                         if (_errorMessage != null)
                                           Padding(
-                                            padding:
-                                                const EdgeInsets.only(top: 16),
+                                            padding: const EdgeInsets.only(
+                                              top: 16,
+                                            ),
                                             child: Text(
                                               _errorMessage!,
                                               style: const TextStyle(
                                                 color: AppPalette.danger,
-                                                fontSize: 13,
+                                                fontSize: 12,
                                               ),
                                             ),
                                           ),
@@ -308,7 +300,7 @@ class _LoginHeader extends StatelessWidget {
           isLoading ? 'Authenticating...' : 'Welcome back',
           style: GoogleFonts.spaceGrotesk(
             textStyle: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -336,19 +328,12 @@ class _BackgroundGrid extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Color(0xFF0F1626),
-            Color(0xFF111B2E),
-            Color(0xFF04070F),
-          ],
+          colors: [AppPalette.panelElevated, AppPalette.panel, AppPalette.ink],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: CustomPaint(
-        size: size,
-        painter: _GridPainter(),
-      ),
+      child: CustomPaint(size: size, painter: _GridPainter()),
     );
   }
 }
@@ -357,7 +342,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
+      ..color = AppPalette.text.withValues(alpha: 0.05)
       ..strokeWidth = 0.8;
 
     const double step = 32;

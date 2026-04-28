@@ -59,7 +59,8 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
     }
 
     final impact = repository.bookingImpactForListingDeletion(_selectedIds);
-    final confirm = await showDialog<bool>(
+    final confirm =
+        await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: Text(
@@ -77,7 +78,9 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
                 ElevatedButton(
                   onPressed: () => Navigator.pop(dialogContext, true),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppPalette.danger,
+                    backgroundColor: AppPalette.danger.withValues(alpha: 0.15),
+                    foregroundColor: AppPalette.danger,
+                    side: const BorderSide(color: AppPalette.danger),
                   ),
                   child: const Text('Delete'),
                 ),
@@ -111,69 +114,68 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _listings.isEmpty
-              ? const _EmptyState()
-              : Column(
-                  children: [
-                    Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.all(20),
-                        itemCount: _listings.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final listing = _listings[index];
-                          final isSelected = _selectedIds.contains(listing.id);
-                          return _ListingTile(
-                            listing: listing,
-                            selected: isSelected,
-                            onChanged: (checked) {
-                              setState(() {
-                                if (checked) {
-                                  _selectedIds.add(listing.id);
-                                } else {
-                                  _selectedIds.remove(listing.id);
-                                }
-                              });
-                            },
-                          );
+          ? const _EmptyState()
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: _listings.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final listing = _listings[index];
+                      final isSelected = _selectedIds.contains(listing.id);
+                      return _ListingTile(
+                        listing: listing,
+                        selected: isSelected,
+                        onChanged: (checked) {
+                          setState(() {
+                            if (checked) {
+                              _selectedIds.add(listing.id);
+                            } else {
+                              _selectedIds.remove(listing.id);
+                            }
+                          });
                         },
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TapScale(
-                              enabled: _selectedIds.isNotEmpty,
-                              child: OutlinedButton(
-                                onPressed: _selectedIds.isEmpty
-                                    ? null
-                                    : () =>
-                                        setState(() => _selectedIds.clear()),
-                                child: const Text('Clear selection'),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TapScale(
-                              enabled: _selectedIds.isNotEmpty,
-                              child: ElevatedButton(
-                                onPressed: _selectedIds.isEmpty
-                                    ? null
-                                    : _deleteSelected,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppPalette.danger,
-                                ),
-                                child: Text('Delete ${_selectedIds.length}'),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                      );
+                    },
+                  ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TapScale(
+                          enabled: _selectedIds.isNotEmpty,
+                          child: OutlinedButton(
+                            onPressed: _selectedIds.isEmpty
+                                ? null
+                                : () => setState(() => _selectedIds.clear()),
+                            child: const Text('Clear selection'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TapScale(
+                          enabled: _selectedIds.isNotEmpty,
+                          child: ElevatedButton(
+                            onPressed: _selectedIds.isEmpty
+                                ? null
+                                : _deleteSelected,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppPalette.danger,
+                            ),
+                            child: Text('Delete ${_selectedIds.length}'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -255,7 +257,7 @@ class _ListingTile extends StatelessWidget {
         border: Border.all(
           color: selected
               ? AppPalette.neonPulse.withValues(alpha: 0.5)
-              : Colors.white.withValues(alpha: 0.04),
+              : AppPalette.border,
         ),
       ),
       child: Row(
@@ -272,16 +274,15 @@ class _ListingTile extends StatelessWidget {
                 Text(
                   listing.name,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   listing.location,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppPalette.softSlate),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppPalette.softSlate),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -302,26 +303,11 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.layers_clear_outlined,
-              size: 52, color: Colors.white.withValues(alpha: 0.4)),
-          const SizedBox(height: 12),
-          Text(
-            'No crashpads yet',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Create a listing and your command center will appear here.',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppPalette.softSlate),
-          ),
-        ],
+    return const Center(
+      child: EmptyStatePanel(
+        icon: Icons.layers_clear_outlined,
+        title: 'No crashpads yet',
+        message: 'Create a listing and your command center will appear here.',
       ),
     );
   }
