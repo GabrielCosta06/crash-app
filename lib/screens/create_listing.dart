@@ -62,6 +62,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final ImagePicker _picker = ImagePicker();
 
   bool _isSubmitting = false;
+  String? _formError;
   String _bedType = CrashpadBedModel.hot.label;
   bool get _isEditing => widget.crashpad != null;
 
@@ -229,28 +230,28 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   void _addCustomAmenity() {
-    final messenger = ScaffoldMessenger.of(context);
     final value = _contentService.normalize(_customAmenityController.text);
     final error = _contentService.validateCustomAmenity(value);
     if (error != null) {
-      messenger.showSnackBar(SnackBar(content: Text(error)));
+      setState(() => _formError = error);
       return;
     }
     setState(() {
+      _formError = null;
       _selectedAmenities.add(value);
       _customAmenityController.clear();
     });
   }
 
   void _addCustomRule() {
-    final messenger = ScaffoldMessenger.of(context);
     final value = _contentService.normalize(_customRuleController.text);
     final error = _contentService.validateCustomRule(value);
     if (error != null) {
-      messenger.showSnackBar(SnackBar(content: Text(error)));
+      setState(() => _formError = error);
       return;
     }
     setState(() {
+      _formError = null;
       _selectedRules.add(value);
       _customRuleController.clear();
     });
@@ -269,31 +270,28 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final repository = context.read<AppRepository>();
     final user = repository.currentUser;
     if (user == null || user.userType != AppUserType.owner) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Only crashpad owners can save listings.'),
-        ),
+      setState(
+        () => _formError = 'Only crashpad owners can save listings.',
       );
       return;
     }
 
     final rooms = _buildRooms(strict: true);
     if (rooms.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one room.')),
-      );
+      setState(() => _formError = 'Add at least one room.');
       return;
     }
     if (_selectedAmenities.isEmpty || _selectedRules.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Select at least one amenity and one house rule.'),
-        ),
+      setState(
+        () => _formError = 'Select at least one amenity and one house rule.',
       );
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _formError = null;
+    });
     try {
       final imageUrls = _imageUrls.isEmpty ? _placeholderImages : _imageUrls;
       final amenities = _contentService.normalizeSelection(_selectedAmenities);
@@ -363,14 +361,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       Navigator.pop(context, savedCrashpad);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isEditing
-                ? 'Failed to save listing: $error'
-                : 'Failed to create listing: $error',
-          ),
-        ),
+      setState(
+        () => _formError = _isEditing
+            ? 'Failed to save listing: $error'
+            : 'Failed to create listing: $error',
       );
     } finally {
       if (mounted) {
@@ -404,6 +398,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       ),
       body: Form(
         key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
         child: SingleChildScrollView(
           child: ResponsivePage(
             maxWidth: 1240,
@@ -416,6 +411,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       ? 'Update every guest-facing and operational detail for this listing.'
                       : 'Publish the actual property details owners need: rooms, beds, guests, fees, services, and house rules.',
                 ),
+                if (_formError != null) ...<Widget>[
+                  const SizedBox(height: AppSpacing.lg),
+                  _ListingFormError(message: _formError!),
+                ],
                 const SizedBox(height: AppSpacing.xxl),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -560,6 +559,40 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         )
         .map((charge) => charge.toCheckoutCharge())
         .toList();
+  }
+}
+
+class _ListingFormError extends StatelessWidget {
+  const _ListingFormError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppPalette.danger.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppPalette.danger.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(Icons.error_outline, color: AppPalette.danger),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppPalette.danger,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

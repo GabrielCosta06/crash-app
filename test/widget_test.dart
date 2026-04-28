@@ -7,8 +7,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
+import 'package:crash_pad/data/app_repository.dart';
 import 'package:crash_pad/main.dart';
+import 'package:crash_pad/models/booking.dart';
+import 'package:crash_pad/screens/checkout_screen.dart';
+import 'package:crash_pad/services/payment_service.dart';
+import 'package:crash_pad/theme/app_theme.dart';
 
 void main() {
   testWidgets('renders the login surface by default',
@@ -42,6 +48,48 @@ void main() {
     expect(find.text('Manage beds, guests, charges, and payouts.'),
         findsOneWidget);
     expect(find.text('Management command center'), findsOneWidget);
+  });
+
+  testWidgets('invalid login shows inline error without leaving login',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Flight crew email'),
+      'missing@example.com',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Passcode'),
+      'wrongpass',
+    );
+    await tester.tap(find.text('Sign in securely'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Invalid email or password.'), findsOneWidget);
+    expect(find.text('Flight crew email'), findsOneWidget);
+  });
+
+  testWidgets('forgot password unknown account shows inline recovery error',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Forgot access code?'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Crew email'),
+      'nobody@example.com',
+    );
+    await tester.tap(find.text('Send reset link'));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('We could not find an account'),
+      findsOneWidget,
+    );
+    expect(find.text('Recover access'), findsOneWidget);
   });
 
   testWidgets('owner workflow tiles show actionable empty states',
@@ -107,5 +155,75 @@ void main() {
 
     expect(find.text('Find a crashpad'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Search listings'), findsOneWidget);
+  });
+
+  testWidgets('checkout review advances to mock payment with inline validation',
+      (WidgetTester tester) async {
+    final repository = AppRepository();
+    await repository.logIn('crew@crashpads.com', 'flysafe');
+    final crashpad = repository.crashpads.first;
+    final guest = repository.currentUser!;
+    final checkIn = DateTime(2027, 1, 1);
+    final draft = BookingDraft(
+      crashpadId: crashpad.id,
+      guestId: guest.id,
+      nightlyRate: crashpad.price,
+      checkInDate: checkIn,
+      checkOutDate: checkIn.add(Duration(days: crashpad.minimumStayNights)),
+      guestCount: 1,
+    );
+    const paymentService = PaymentService();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppRepository>.value(
+        value: repository,
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          darkTheme: AppTheme.dark,
+          themeMode: ThemeMode.dark,
+          home: CheckoutScreen(
+            arguments: CheckoutArguments(
+              crashpad: crashpad,
+              draft: draft,
+              summary: paymentService.buildSummary(draft),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Review booking'), findsOneWidget);
+    expect(find.text(crashpad.name), findsOneWidget);
+
+    await tester.tap(find.text('Continue to mock payment'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mock payment'), findsOneWidget);
+
+    await tester.tap(find.text('Authorize mock payment'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter the cardholder name'), findsOneWidget);
+    expect(find.text('Enter a card-like demo number'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name on card'),
+      'Crew Member',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Demo card number'),
+      '4242424242424242',
+    );
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Expiry'), '12/30');
+    await tester.enterText(find.widgetWithText(TextFormField, 'CVC'), '123');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Billing ZIP / postal code'),
+      '98101',
+    );
+    await tester.tap(find.text('Authorize mock payment'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Booking request pending.'), findsOneWidget);
+    expect(repository.bookings, hasLength(1));
   });
 }

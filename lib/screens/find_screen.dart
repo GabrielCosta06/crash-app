@@ -78,8 +78,7 @@ class _FindScreenState extends State<FindScreen>
     final results = crashpads.where((crashpad) {
       final matchesBed =
           _selectedBedType == 'All' || crashpad.bedType == _selectedBedType;
-      final matchesQuery =
-          query.isEmpty ||
+      final matchesQuery = query.isEmpty ||
           <String>[
             crashpad.name,
             crashpad.location,
@@ -217,11 +216,22 @@ class _FindScreenState extends State<FindScreen>
                 if (_showInitialSkeleton)
                   const _ResultSkeletonLayout()
                 else if (results.isEmpty)
-                  const EmptyStatePanel(
+                  EmptyStatePanel(
                     icon: Icons.search_off_outlined,
                     title: 'No listings found',
                     message:
-                        'Adjust the search, sort, or bed model filters and try again.',
+                        'Clear the search or choose a different bed model to broaden the results.',
+                    action: AppSecondaryButton(
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _selectedBedType = 'All';
+                          _selectedSort = 'Newest';
+                        });
+                      },
+                      icon: Icons.refresh_outlined,
+                      child: const Text('Clear filters'),
+                    ),
                   )
                 else
                   _ResultLayout(
@@ -384,7 +394,9 @@ class _DesktopResultTable extends StatelessWidget {
                                 '${crashpad.nearestAirport} - ${crashpad.location}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
                                     ?.copyWith(color: AppPalette.textMuted),
                               ),
                             ],
@@ -395,7 +407,9 @@ class _DesktopResultTable extends StatelessWidget {
                         const SizedBox(width: AppSpacing.lg),
                         Text(
                           '\$${crashpad.price.toStringAsFixed(0)}/night',
-                          style: Theme.of(context).textTheme.titleMedium
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
                               ?.copyWith(color: AppPalette.blueSoft),
                         ),
                       ],
@@ -425,6 +439,9 @@ class _StaggeredEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return child;
+    }
     final total = controller.duration?.inMilliseconds ?? 280;
     final start = (index * 55 / total).clamp(0.0, 0.9);
     final end = ((index * 55 + 280) / total).clamp(start, 1.0);

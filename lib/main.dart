@@ -108,9 +108,9 @@ class _MyAppState extends State<MyApp> {
     switch (destination) {
       case '/login':
         builder = (context) => LoginScreen(
-          onAuthenticated: () =>
-              Navigator.of(context).pushReplacementNamed(_landingRoute()),
-        );
+              onAuthenticated: () =>
+                  Navigator.of(context).pushReplacementNamed(_landingRoute()),
+            );
         break;
       case '/signup':
         builder = (context) => const SignupScreen();
@@ -118,9 +118,9 @@ class _MyAppState extends State<MyApp> {
       case '/home':
         final args = settings.arguments;
         builder = (context) => MainScreen(
-          initialFindQuery: args is String ? args : null,
-          initialIndex: args is String ? 1 : 0,
-        );
+              initialFindQuery: args is String ? args : null,
+              initialIndex: args is String ? 1 : 0,
+            );
         break;
       case '/management':
       case '/owner':
@@ -136,25 +136,41 @@ class _MyAppState extends State<MyApp> {
         builder = (context) => const ForgotPasswordScreen();
         break;
       case '/owner-details':
-        final crashpad = settings.arguments as Crashpad;
-        builder = (context) => OwnerDetailsScreen(crashpad: crashpad);
+        final args = settings.arguments;
+        builder = args is Crashpad
+            ? (context) => OwnerDetailsScreen(crashpad: args)
+            : (context) => const _RouteErrorScreen(
+                  title: 'Listing unavailable',
+                  message:
+                      'We could not open that listing. Return home and choose a current crashpad.',
+                  routeLabel: 'Back to listings',
+                  routeName: '/home',
+                );
         break;
       case '/edit_listing':
         final crashpad = settings.arguments as Crashpad;
         builder = (context) => CreateListingScreen(crashpad: crashpad);
         break;
       case '/checkout':
-        final arguments = settings.arguments as CheckoutArguments;
-        builder = (context) => CheckoutScreen(arguments: arguments);
+        final args = settings.arguments;
+        builder = args is CheckoutArguments
+            ? (context) => CheckoutScreen(arguments: args)
+            : (context) => const _RouteErrorScreen(
+                  title: 'Checkout unavailable',
+                  message:
+                      'Start checkout from a valid listing so dates, availability, and pricing stay in sync.',
+                  routeLabel: 'Find a crashpad',
+                  routeName: '/home',
+                );
         break;
       case '/subscribe':
         builder = (context) => const SubscriptionScreen();
         break;
       default:
         builder = (context) => LoginScreen(
-          onAuthenticated: () =>
-              Navigator.of(context).pushReplacementNamed(_landingRoute()),
-        );
+              onAuthenticated: () =>
+                  Navigator.of(context).pushReplacementNamed(_landingRoute()),
+            );
     }
 
     return AppPageRoute<void>(builder: builder, settings: settings);
@@ -417,4 +433,44 @@ class _Destination {
 
   final IconData icon;
   final String label;
+}
+
+class _RouteErrorScreen extends StatelessWidget {
+  const _RouteErrorScreen({
+    required this.title,
+    required this.message,
+    required this.routeLabel,
+    required this.routeName,
+  });
+
+  final String title;
+  final String message;
+  final String routeLabel;
+  final String routeName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xxl),
+            child: EmptyStatePanel(
+              icon: Icons.warning_amber_outlined,
+              title: title,
+              message: message,
+              action: AppPrimaryButton(
+                onPressed: () => Navigator.pushReplacementNamed(
+                  context,
+                  routeName,
+                ),
+                icon: Icons.arrow_forward_outlined,
+                child: Text(routeLabel),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

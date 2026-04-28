@@ -156,8 +156,7 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
   Widget build(BuildContext context) {
     final repository = context.watch<AppRepository>();
     final isEmployee = repository.currentUser?.userType == AppUserType.employee;
-    final isOwner =
-        repository.currentUser?.email.toLowerCase() ==
+    final isOwner = repository.currentUser?.email.toLowerCase() ==
         _crashpad.owner.contact?.toLowerCase();
     final averageRating = repository.calculateAverageRating(_crashpad.id);
     final availability = const AvailabilityService().summarize(_crashpad);
@@ -198,10 +197,12 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
                       averageRating: averageRating,
                       availability: availability,
                     );
-                    final booking = _BookingPanel(
-                      key: _bookingPanelKey,
-                      crashpad: _crashpad,
-                    );
+                    final booking = isOwner
+                        ? _OwnerListingPanel(crashpad: _crashpad)
+                        : _BookingPanel(
+                            key: _bookingPanelKey,
+                            crashpad: _crashpad,
+                          );
 
                     if (!isWide) {
                       return Column(
@@ -236,8 +237,7 @@ class _OwnerDetailsScreenState extends State<OwnerDetailsScreen> {
           ),
         ),
       ),
-      bottomNavigationBar:
-          isEmployee &&
+      bottomNavigationBar: isEmployee &&
               MediaQuery.sizeOf(context).width < AppBreakpoints.desktop
           ? Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
@@ -287,8 +287,8 @@ class _ListingHero extends StatelessWidget {
                 imageUrls: crashpad.imageUrls,
                 height:
                     MediaQuery.sizeOf(context).width >= AppBreakpoints.tablet
-                    ? 430
-                    : 280,
+                        ? 430
+                        : 280,
                 width: double.infinity,
                 heroTag: 'crashpad-${crashpad.id}',
               ),
@@ -337,15 +337,17 @@ class _ListingHero extends StatelessWidget {
                     const SizedBox(height: 16),
                     Text(
                       crashpad.name,
-                      style: Theme.of(context).textTheme.headlineMedium
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineMedium
                           ?.copyWith(color: AppPalette.text),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '${crashpad.location} | Nearest airport: ${crashpad.nearestAirport}',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppPalette.text.withValues(alpha: 0.86),
-                      ),
+                            color: AppPalette.text.withValues(alpha: 0.86),
+                          ),
                     ),
                   ],
                 ),
@@ -400,6 +402,8 @@ class _BookingPanelState extends State<_BookingPanel> {
   late DateTime _checkInDate;
   late DateTime _checkOutDate;
   int _guestCount = AppConfig.defaultGuestCount;
+  bool _isStartingCheckout = false;
+  String? _bookingError;
 
   int get _nights => _checkOutDate.difference(_checkInDate).inDays;
 
@@ -428,8 +432,7 @@ class _BookingPanelState extends State<_BookingPanel> {
 
     return BookingDraft(
       crashpadId: widget.crashpad.id,
-      guestId:
-          guest?.id ??
+      guestId: guest?.id ??
           (throw StateError('Sign in as a guest to request this stay.')),
       nightlyRate: widget.crashpad.price,
       checkInDate: _checkInDate,
@@ -440,19 +443,18 @@ class _BookingPanelState extends State<_BookingPanel> {
   }
 
   Future<void> _startCheckout() async {
+    if (_isStartingCheckout) return;
     final repository = context.read<AppRepository>();
     final user = repository.currentUser;
     if (user == null || !user.isEmployee) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sign in as a guest to book this stay.')),
+      setState(
+        () => _bookingError = 'Sign in as a crew guest to book this stay.',
       );
       return;
     }
     if (!_checkOutDate.isAfter(_checkInDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Choose a check-out date after check-in.'),
-        ),
+      setState(
+        () => _bookingError = 'Choose a check-out date after check-in.',
       );
       return;
     }
@@ -462,34 +464,44 @@ class _BookingPanelState extends State<_BookingPanel> {
       checkOutDate: _checkOutDate,
     );
     if (available < _guestCount) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            available == 0
-                ? 'No spaces are available for those dates.'
-                : 'Only $available space(s) are available for those dates.',
-          ),
-        ),
+      setState(
+        () => _bookingError = available == 0
+            ? 'No spaces are available for those dates.'
+            : 'Only $available space(s) are available for those dates.',
       );
       return;
     }
-    final booking = await Navigator.pushNamed(
-      context,
-      '/checkout',
-      arguments: CheckoutArguments(
-        crashpad: widget.crashpad,
-        draft: _draft,
-        summary: _summary,
-      ),
-    );
-    if (!mounted || booking == null) return;
-    await showActionFeedback(
-      context: context,
-      icon: Icons.check_circle_outline,
-      title: 'Request sent',
-      message: 'Your booking is pending owner approval.',
-      color: AppPalette.warning,
-    );
+    setState(() {
+      _isStartingCheckout = true;
+      _bookingError = null;
+    });
+    try {
+      final booking = await Navigator.pushNamed(
+        context,
+        '/checkout',
+        arguments: CheckoutArguments(
+          crashpad: widget.crashpad,
+          draft: _draft,
+          summary: _summary,
+        ),
+      );
+      if (!mounted || booking == null) return;
+      await showActionFeedback(
+        context: context,
+        icon: Icons.check_circle_outline,
+        title: 'Request sent',
+        message: 'Your booking is pending owner approval.',
+        color: AppPalette.warning,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _bookingError =
+            'Checkout could not start. ${error.toString().replaceFirst('Exception: ', '')}',
+      );
+    } finally {
+      if (mounted) setState(() => _isStartingCheckout = false);
+    }
   }
 
   Future<void> _pickCheckIn() async {
@@ -520,9 +532,8 @@ class _BookingPanelState extends State<_BookingPanel> {
     );
     final selected = await showDatePicker(
       context: context,
-      initialDate: _checkOutDate.isBefore(firstDate)
-          ? firstDate
-          : _checkOutDate,
+      initialDate:
+          _checkOutDate.isBefore(firstDate) ? firstDate : _checkOutDate,
       firstDate: firstDate,
       lastDate: _checkInDate.add(const Duration(days: 365)),
       helpText: 'Select check-out',
@@ -630,6 +641,10 @@ class _BookingPanelState extends State<_BookingPanel> {
             guestCount: _guestCount,
             summary: _summary,
           ),
+          if (_bookingError != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.lg),
+            _InlineBookingError(message: _bookingError!),
+          ],
           const SizedBox(height: AppSpacing.xl),
           SizedBox(
             width: double.infinity,
@@ -638,9 +653,20 @@ class _BookingPanelState extends State<_BookingPanel> {
                   ? ''
                   : 'No beds available for the selected dates.',
               child: AppPrimaryButton(
-                onPressed: dateAwareCapacity > 0 ? _startCheckout : null,
-                icon: Icons.send_outlined,
-                child: const Text('Request Booking'),
+                onPressed: dateAwareCapacity > 0 && !_isStartingCheckout
+                    ? _startCheckout
+                    : null,
+                icon: _isStartingCheckout ? null : Icons.send_outlined,
+                child: _isStartingCheckout
+                    ? Semantics(
+                        label: 'Starting checkout',
+                        child: const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : const Text('Request Booking'),
               ),
             ),
           ),
@@ -698,6 +724,65 @@ class _StepperField extends StatelessWidget {
                 icon: const Icon(Icons.add),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OwnerListingPanel extends StatelessWidget {
+  const _OwnerListingPanel({required this.crashpad});
+
+  final Crashpad crashpad;
+
+  @override
+  Widget build(BuildContext context) {
+    return EmptyStatePanel(
+      icon: Icons.admin_panel_settings_outlined,
+      title: 'Owner view',
+      message:
+          'You are viewing your listing. Booking requests are available to crew guests only.',
+      action: AppPrimaryButton(
+        onPressed: () => Navigator.pushNamed(
+          context,
+          '/edit_listing',
+          arguments: crashpad,
+        ),
+        icon: Icons.edit_outlined,
+        child: const Text('Edit listing'),
+      ),
+    );
+  }
+}
+
+class _InlineBookingError extends StatelessWidget {
+  const _InlineBookingError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppPalette.danger.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppPalette.danger.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(Icons.error_outline, color: AppPalette.danger),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppPalette.danger,
+                  ),
+            ),
           ),
         ],
       ),
@@ -869,8 +954,8 @@ class _RoomsSection extends StatelessWidget {
             final columns = constraints.maxWidth >= AppBreakpoints.desktop
                 ? 3
                 : constraints.maxWidth >= AppBreakpoints.tablet
-                ? 2
-                : 1;
+                    ? 2
+                    : 1;
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -920,9 +1005,8 @@ class _RoomCard extends StatelessWidget {
             text: '${room.physicalBeds} physical beds',
           ),
           _BulletLine(
-            icon: isHot
-                ? Icons.groups_2_outlined
-                : Icons.assignment_ind_outlined,
+            icon:
+                isHot ? Icons.groups_2_outlined : Icons.assignment_ind_outlined,
             text: isHot
                 ? '${room.availableHotSlots} hot-bed slots open'
                 : '${room.availableColdBeds} assigned beds open',

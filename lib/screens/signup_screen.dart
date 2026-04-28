@@ -84,7 +84,10 @@ class _SignupScreenState extends State<SignupScreen> {
         color: AppPalette.neonPulse,
       );
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(
+        context,
+        _userType == AppUserType.owner ? '/management' : '/home',
+      );
     } on AuthException catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = error.message);
@@ -156,12 +159,16 @@ class _SignupScreenState extends State<SignupScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   'Register as a guest to book verified stays, or as an owner to manage your properties.',
-                                  style: Theme.of(context).textTheme.bodyMedium
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
                                       ?.copyWith(color: AppPalette.softSlate),
                                 ),
                                 const SizedBox(height: 24),
                                 Form(
                                   key: _formKey,
+                                  autovalidateMode:
+                                      AutovalidateMode.onUserInteraction,
                                   child: Column(
                                     children: [
                                       Row(
@@ -198,28 +205,36 @@ class _SignupScreenState extends State<SignupScreen> {
                                           Expanded(
                                             child: TextFormField(
                                               controller: _firstNameController,
+                                              textInputAction:
+                                                  TextInputAction.next,
+                                              textCapitalization:
+                                                  TextCapitalization.words,
                                               decoration: const InputDecoration(
                                                 labelText: 'First name',
                                               ),
                                               validator: (value) =>
                                                   value == null ||
-                                                      value.trim().isEmpty
-                                                  ? 'First name is required'
-                                                  : null,
+                                                          value.trim().isEmpty
+                                                      ? 'First name is required'
+                                                      : null,
                                             ),
                                           ),
                                           const SizedBox(width: 16),
                                           Expanded(
                                             child: TextFormField(
                                               controller: _lastNameController,
+                                              textInputAction:
+                                                  TextInputAction.next,
+                                              textCapitalization:
+                                                  TextCapitalization.words,
                                               decoration: const InputDecoration(
                                                 labelText: 'Last name',
                                               ),
                                               validator: (value) =>
                                                   value == null ||
-                                                      value.trim().isEmpty
-                                                  ? 'Last name is required'
-                                                  : null,
+                                                          value.trim().isEmpty
+                                                      ? 'Last name is required'
+                                                      : null,
                                             ),
                                           ),
                                         ],
@@ -235,6 +250,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                         ),
                                         keyboardType:
                                             TextInputType.emailAddress,
+                                        textInputAction: TextInputAction.next,
+                                        autocorrect: false,
                                         validator: (value) {
                                           if (value == null ||
                                               value.trim().isEmpty ||
@@ -248,6 +265,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                       TextFormField(
                                         controller: _passwordController,
                                         obscureText: _obscurePassword,
+                                        textInputAction: TextInputAction.next,
+                                        autocorrect: false,
                                         decoration: InputDecoration(
                                           labelText: 'Password',
                                           prefixIcon: const Icon(
@@ -258,7 +277,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                             icon: Icon(
                                               _obscurePassword
                                                   ? Icons
-                                                        .visibility_off_outlined
+                                                      .visibility_off_outlined
                                                   : Icons.visibility_outlined,
                                             ),
                                             onPressed: () => setState(
@@ -281,14 +300,18 @@ class _SignupScreenState extends State<SignupScreen> {
                                           Expanded(
                                             child: TextFormField(
                                               controller: _countryController,
+                                              textInputAction:
+                                                  TextInputAction.next,
+                                              textCapitalization:
+                                                  TextCapitalization.words,
                                               decoration: const InputDecoration(
                                                 labelText: 'Country of birth',
                                               ),
                                               validator: (value) =>
                                                   value == null ||
-                                                      value.trim().isEmpty
-                                                  ? 'Required'
-                                                  : null,
+                                                          value.trim().isEmpty
+                                                      ? 'Required'
+                                                      : null,
                                             ),
                                           ),
                                           const SizedBox(width: 16),
@@ -305,9 +328,9 @@ class _SignupScreenState extends State<SignupScreen> {
                                               ),
                                               validator: (value) =>
                                                   value == null ||
-                                                      value.trim().isEmpty
-                                                  ? 'Select your birth date'
-                                                  : null,
+                                                          value.trim().isEmpty
+                                                      ? 'Select your birth date'
+                                                      : null,
                                             ),
                                           ),
                                         ],
@@ -322,13 +345,18 @@ class _SignupScreenState extends State<SignupScreen> {
                                                   child: TextFormField(
                                                     controller:
                                                         _companyController,
+                                                    textInputAction:
+                                                        TextInputAction.next,
+                                                    textCapitalization:
+                                                        TextCapitalization
+                                                            .words,
                                                     decoration:
                                                         const InputDecoration(
-                                                          labelText:
-                                                              'Airline / company',
-                                                        ),
-                                                    validator: (value) =>
-                                                        value == null ||
+                                                      labelText:
+                                                          'Airline / company',
+                                                    ),
+                                                    validator: (value) => value ==
+                                                                null ||
                                                             value.trim().isEmpty
                                                         ? 'Required for crew access'
                                                         : null,
@@ -339,13 +367,20 @@ class _SignupScreenState extends State<SignupScreen> {
                                                   child: TextFormField(
                                                     controller:
                                                         _badgeController,
+                                                    textInputAction:
+                                                        TextInputAction.done,
+                                                    onFieldSubmitted: (_) {
+                                                      if (!_isLoading) {
+                                                        _handleSignup();
+                                                      }
+                                                    },
                                                     decoration:
                                                         const InputDecoration(
-                                                          labelText:
-                                                              'Crew badge ID',
-                                                        ),
-                                                    validator: (value) =>
-                                                        value == null ||
+                                                      labelText:
+                                                          'Crew badge ID',
+                                                    ),
+                                                    validator: (value) => value ==
+                                                                null ||
                                                             value.trim().isEmpty
                                                         ? 'Enter your badge number'
                                                         : null,
@@ -359,17 +394,16 @@ class _SignupScreenState extends State<SignupScreen> {
                                       SizedBox(
                                         width: double.infinity,
                                         child: AppPrimaryButton(
-                                          onPressed: _isLoading
-                                              ? null
-                                              : _handleSignup,
+                                          onPressed:
+                                              _isLoading ? null : _handleSignup,
                                           child: _isLoading
                                               ? const SizedBox(
                                                   height: 20,
                                                   width: 20,
                                                   child:
                                                       CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                      ),
+                                                    strokeWidth: 2,
+                                                  ),
                                                 )
                                               : const Text(
                                                   'Create my Crashpad account',

@@ -47,13 +47,17 @@ class _TapScaleState extends State<TapScale> {
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Listener(
       onPointerDown: (_) => _setPressed(true),
       onPointerUp: (_) => _setPressed(false),
       onPointerCancel: (_) => _setPressed(false),
       child: AnimatedScale(
-        scale: widget.enabled && _pressed ? widget.pressScale : 1.0,
-        duration: widget.duration,
+        scale: widget.enabled && _pressed && !reduceMotion
+            ? widget.pressScale
+            : 1.0,
+        duration: reduceMotion ? Duration.zero : widget.duration,
         curve: widget.curve,
         child: widget.child,
       ),

@@ -65,7 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on AuthException catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = error.message);
+      setState(() => _errorMessage = _friendlyAuthError(error.message));
     } catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = 'Unexpected error: $error');
@@ -129,6 +129,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   const SizedBox(height: 24),
                                   Form(
                                     key: _formKey,
+                                    autovalidateMode:
+                                        AutovalidateMode.onUserInteraction,
                                     child: Column(
                                       children: [
                                         TextFormField(
@@ -141,6 +143,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                           keyboardType:
                                               TextInputType.emailAddress,
+                                          textInputAction: TextInputAction.next,
+                                          autocorrect: false,
                                           validator: (value) {
                                             if (value == null ||
                                                 value.trim().isEmpty ||
@@ -154,6 +158,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                         TextFormField(
                                           controller: _passwordController,
                                           obscureText: _obscurePassword,
+                                          textInputAction: TextInputAction.done,
+                                          autocorrect: false,
+                                          onFieldSubmitted: (_) {
+                                            if (!_isLoading) _handleLogin();
+                                          },
                                           decoration: InputDecoration(
                                             labelText: 'Passcode',
                                             prefixIcon: const Icon(
@@ -166,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                               icon: Icon(
                                                 _obscurePassword
                                                     ? Icons
-                                                          .visibility_off_outlined
+                                                        .visibility_off_outlined
                                                     : Icons.visibility_outlined,
                                               ),
                                             ),
@@ -210,8 +219,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                                     width: 20,
                                                     child:
                                                         CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                        ),
+                                                      strokeWidth: 2,
+                                                    ),
                                                   )
                                                 : const Text(
                                                     'Sign in securely',
@@ -262,6 +271,13 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+String _friendlyAuthError(String message) {
+  if (message == 'Account not found' || message == 'Incorrect password') {
+    return 'Invalid email or password.';
+  }
+  return message;
 }
 
 /// Presents a welcoming header with contextual copy.

@@ -27,6 +27,7 @@ class _AccountScreenState extends State<AccountScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
   bool _isSavingProfile = false;
+  String? _accountError;
 
   Future<void> _pickAvatar() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -49,8 +50,8 @@ class _AccountScreenState extends State<AccountScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text('Could not update photo: $error')),
+      setState(
+        () => _accountError = 'Could not update photo: $error',
       );
     } finally {
       if (mounted) {
@@ -92,8 +93,8 @@ class _AccountScreenState extends State<AccountScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text('Could not update profile: $error')),
+      setState(
+        () => _accountError = 'Could not update profile: $error',
       );
     } finally {
       if (mounted) {
@@ -140,10 +141,9 @@ class _AccountScreenState extends State<AccountScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not cancel this booking. ${error.toString()}'),
-        ),
+      setState(
+        () => _accountError =
+            'Could not cancel this booking. ${error.toString()}',
       );
     }
   }
@@ -168,8 +168,8 @@ class _AccountScreenState extends State<AccountScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not submit report: $error')),
+      setState(
+        () => _accountError = 'Could not submit report: $error',
       );
     }
   }
@@ -237,6 +237,13 @@ class _AccountScreenState extends State<AccountScreen> {
                 onPickAvatar: _pickAvatar,
                 onEditProfile: () => _editProfile(user),
               ),
+              if (_accountError != null) ...<Widget>[
+                const SizedBox(height: AppSpacing.lg),
+                _AccountErrorPanel(
+                  message: _accountError!,
+                  onDismiss: () => setState(() => _accountError = null),
+                ),
+              ],
               const SizedBox(height: AppSpacing.xxxl),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -276,6 +283,50 @@ class _AccountScreenState extends State<AccountScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AccountErrorPanel extends StatelessWidget {
+  const _AccountErrorPanel({required this.message, required this.onDismiss});
+
+  final String message;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return CrashSurface(
+      borderColor: AppPalette.danger.withValues(alpha: 0.36),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(Icons.error_outline, color: AppPalette.danger),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Account update failed',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppPalette.textMuted,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close_outlined),
+            tooltip: 'Dismiss account error',
+          ),
+        ],
       ),
     );
   }

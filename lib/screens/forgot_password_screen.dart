@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../data/app_repository.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_components.dart';
 import '../widgets/interaction_feedback.dart';
 
 /// Lightweight flow to request a password reset link.
@@ -17,6 +18,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   bool _isSubmitting = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -26,7 +28,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _sendResetLink() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
 
     final repository = context.read<AppRepository>();
     final email = _emailController.text.trim();
@@ -35,9 +40,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (!mounted) return;
 
     if (!repository.userExists(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('We couldn\'t find an account for that email.')),
+      setState(
+        () => _errorMessage =
+            'We could not find an account for that email. Check the address or create a new account.',
       );
     } else {
       await showActionFeedback(
@@ -73,10 +78,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
                 color: AppPalette.deepSpace.withValues(alpha: 0.85),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                border: Border.all(color: AppPalette.border),
               ),
               child: Form(
                 key: _formKey,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,6 +109,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     TextFormField(
                       controller: _emailController,
                       enabled: !_isSubmitting,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.done,
+                      autocorrect: false,
+                      onFieldSubmitted: (_) {
+                        if (!_isSubmitting) _sendResetLink();
+                      },
                       decoration: const InputDecoration(
                         labelText: 'Crew email',
                         prefixIcon: Icon(Icons.email_outlined),
@@ -116,12 +128,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         return null;
                       },
                     ),
+                    if (_errorMessage != null) ...<Widget>[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          color: AppPalette.danger,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     TapScale(
                       enabled: !_isSubmitting,
                       child: SizedBox(
                         width: double.infinity,
-                        child: ElevatedButton(
+                        child: AppPrimaryButton(
                           onPressed: _isSubmitting ? null : _sendResetLink,
                           child: _isSubmitting
                               ? const SizedBox(

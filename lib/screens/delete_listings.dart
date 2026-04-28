@@ -20,6 +20,7 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
   List<Crashpad> _listings = const [];
   final Set<String> _selectedIds = <String>{};
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -43,6 +44,7 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
     setState(() {
       _listings = listings;
       _isLoading = false;
+      _errorMessage = null;
       _selectedIds.clear();
     });
   }
@@ -52,15 +54,12 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
     final repository = context.read<AppRepository>();
 
     if (_selectedIds.isEmpty) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Select at least one listing to delete.')),
-      );
+      setState(() => _errorMessage = 'Select at least one listing to delete.');
       return;
     }
 
     final impact = repository.bookingImpactForListingDeletion(_selectedIds);
-    final confirm =
-        await showDialog<bool>(
+    final confirm = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: Text(
@@ -98,8 +97,8 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
       );
       await _loadListings();
     } catch (error) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Could not delete listings: $error')),
+      setState(
+        () => _errorMessage = 'Could not delete listings: $error',
       );
     }
   }
@@ -114,68 +113,82 @@ class _DeleteListingsScreenState extends State<DeleteListingsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _listings.isEmpty
-          ? const _EmptyState()
-          : Column(
-              children: [
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: _listings.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final listing = _listings[index];
-                      final isSelected = _selectedIds.contains(listing.id);
-                      return _ListingTile(
-                        listing: listing,
-                        selected: isSelected,
-                        onChanged: (checked) {
-                          setState(() {
-                            if (checked) {
-                              _selectedIds.add(listing.id);
-                            } else {
-                              _selectedIds.remove(listing.id);
-                            }
-                          });
+              ? const _EmptyState()
+              : Column(
+                  children: [
+                    if (_errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          AppSpacing.xl,
+                          AppSpacing.xl,
+                          0,
+                        ),
+                        child: _DeleteErrorPanel(
+                          message: _errorMessage!,
+                          onRetry: _loadListings,
+                        ),
+                      ),
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(20),
+                        itemCount: _listings.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final listing = _listings[index];
+                          final isSelected = _selectedIds.contains(listing.id);
+                          return _ListingTile(
+                            listing: listing,
+                            selected: isSelected,
+                            onChanged: (checked) {
+                              setState(() {
+                                if (checked) {
+                                  _selectedIds.add(listing.id);
+                                } else {
+                                  _selectedIds.remove(listing.id);
+                                }
+                              });
+                            },
+                          );
                         },
-                      );
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TapScale(
-                          enabled: _selectedIds.isNotEmpty,
-                          child: OutlinedButton(
-                            onPressed: _selectedIds.isEmpty
-                                ? null
-                                : () => setState(() => _selectedIds.clear()),
-                            child: const Text('Clear selection'),
-                          ),
-                        ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TapScale(
-                          enabled: _selectedIds.isNotEmpty,
-                          child: ElevatedButton(
-                            onPressed: _selectedIds.isEmpty
-                                ? null
-                                : _deleteSelected,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppPalette.danger,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TapScale(
+                              enabled: _selectedIds.isNotEmpty,
+                              child: OutlinedButton(
+                                onPressed: _selectedIds.isEmpty
+                                    ? null
+                                    : () =>
+                                        setState(() => _selectedIds.clear()),
+                                child: const Text('Clear selection'),
+                              ),
                             ),
-                            child: Text('Delete ${_selectedIds.length}'),
                           ),
-                        ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TapScale(
+                              enabled: _selectedIds.isNotEmpty,
+                              child: ElevatedButton(
+                                onPressed: _selectedIds.isEmpty
+                                    ? null
+                                    : _deleteSelected,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppPalette.danger,
+                                ),
+                                child: Text('Delete ${_selectedIds.length}'),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
     );
   }
 }
@@ -208,6 +221,51 @@ class _DeletionImpactSummary extends StatelessWidget {
         _ImpactRow(label: 'Completed history', value: impact.completedCount),
         _ImpactRow(label: 'Cancelled history', value: impact.cancelledCount),
       ],
+    );
+  }
+}
+
+class _DeleteErrorPanel extends StatelessWidget {
+  const _DeleteErrorPanel({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return CrashSurface(
+      borderColor: AppPalette.danger.withValues(alpha: 0.36),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(Icons.error_outline, color: AppPalette.danger),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Listing update failed',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppPalette.textMuted,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppSecondaryButton(
+                  onPressed: onRetry,
+                  icon: Icons.refresh_outlined,
+                  child: const Text('Reload listings'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -274,8 +332,8 @@ class _ListingTile extends StatelessWidget {
                 Text(
                   listing.name,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
                 const SizedBox(height: 4),
                 Text(
