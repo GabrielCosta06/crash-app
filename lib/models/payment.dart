@@ -12,6 +12,7 @@ enum ChargeType {
 
 enum PaymentStatus {
   draft,
+  awaitingPayment,
   authorized,
   paid,
   failed,

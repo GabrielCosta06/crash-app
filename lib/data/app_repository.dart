@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../config/app_config.dart';
 import '../models/app_user.dart';
 import '../models/booking.dart';
 import '../models/crashpad.dart';
@@ -13,15 +15,24 @@ import '../models/message_thread.dart';
 import '../services/availability_service.dart';
 import '../services/payment_service.dart';
 import 'mock_crashpad_data.dart';
+import 'supabase_mappers.dart';
 
-/// In-memory data source used to simulate authentication, listings,
-/// reviews and theming state for the demo experience.
+/// Repository facade used by the UI.
+///
+/// Without Supabase credentials it keeps the existing in-memory demo mode.
+/// With a Supabase client it persists MVP auth, listings, bookings, reviews,
+/// messages, and Stripe Checkout orchestration through Supabase tables/functions.
 class AppRepository extends ChangeNotifier {
-  AppRepository() {
-    _seedData();
+  AppRepository({SupabaseClient? supabaseClient}) : _supabase = supabaseClient {
+    if (_usesSupabase) {
+      _hydrateSupabaseSessionUser();
+    } else {
+      _seedData();
+    }
   }
 
   final Uuid _uuid = const Uuid();
+  final SupabaseClient? _supabase;
   final List<AppUser> _users = [];
   final List<Crashpad> _crashpads = [];
   final List<BookingRecord> _bookings = [];
@@ -32,6 +43,9 @@ class AppRepository extends ChangeNotifier {
   AppUser? _currentUser;
   bool _isDarkTheme = true;
 
+  bool get _usesSupabase => _supabase != null;
+  SupabaseClient get _client => _supabase!;
+  bool get usesSupabase => _usesSupabase;
   AppUser? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
   bool get isDarkTheme => _isDarkTheme;
@@ -49,6 +63,48 @@ class AppRepository extends ChangeNotifier {
     return List.unmodifiable(threads);
   }
 
+  Future<void> initialize() async {
+    if (!_usesSupabase) return;
+    final authUser = _client.auth.currentUser;
+    if (authUser == null) return;
+    try {
+      _currentUser = await _fetchProfile(authUser.id);
+      await Future.wait(<Future<void>>[
+        _refreshCrashpads(),
+        _refreshBookings(),
+        _refreshMessageThreads(),
+      ]);
+      notifyListeners();
+    } catch (_) {
+      await _client.auth.signOut();
+      _currentUser = null;
+      notifyListeners();
+    }
+  }
+
+  void _hydrateSupabaseSessionUser() {
+    final authUser = _client.auth.currentUser;
+    if (authUser == null) return;
+    final metadata = authUser.userMetadata ?? const <String, dynamic>{};
+    _currentUser = AppUser(
+      id: authUser.id,
+      email: authUser.email ?? '',
+      password: '',
+      firstName: metadata['first_name']?.toString() ?? '',
+      lastName: metadata['last_name']?.toString() ?? '',
+      countryOfBirth: metadata['country_of_birth']?.toString() ?? '',
+      dateOfBirth: DateTime.tryParse(
+            metadata['date_of_birth']?.toString() ?? '',
+          ) ??
+          DateTime(1990),
+      userType: metadata['user_type']?.toString() == AppUserType.owner.name
+          ? AppUserType.owner
+          : AppUserType.employee,
+      company: metadata['company']?.toString(),
+      badgeNumber: metadata['badge_number']?.toString(),
+    );
+  }
+
   /// Dark mode is now the only supported product theme.
   void toggleTheme() {
     _isDarkTheme = true;
@@ -61,11 +117,38 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool userExists(String email) =>
-      _users.any((user) => user.email.toLowerCase() == email.toLowerCase());
+  bool userExists(String email) {
+    if (_usesSupabase) return true;
+    return _users.any(
+      (user) => user.email.toLowerCase() == email.toLowerCase(),
+    );
+  }
 
   /// Authenticates a user with the provided credentials.
   Future<void> logIn(String email, String password) async {
+    if (_usesSupabase) {
+      try {
+        final response = await _client.auth.signInWithPassword(
+          email: email.trim(),
+          password: password,
+        );
+        final userId = response.user?.id;
+        if (userId == null) throw AuthException('Account not found');
+        _currentUser = await _fetchProfile(userId);
+        await Future.wait(<Future<void>>[
+          _refreshCrashpads(),
+          _refreshBookings(),
+          _refreshMessageThreads(),
+        ]);
+        notifyListeners();
+        return;
+      } on AuthException {
+        rethrow;
+      } catch (_) {
+        throw AuthException('Incorrect password');
+      }
+    }
+
     await Future<void>.delayed(const Duration(milliseconds: 300));
     final user = _users.firstWhere(
       (candidate) => candidate.email.toLowerCase() == email.toLowerCase(),
@@ -81,6 +164,15 @@ class AppRepository extends ChangeNotifier {
 
   /// Signs out the active user.
   Future<void> logOut() async {
+    if (_usesSupabase) {
+      await _client.auth.signOut();
+      _currentUser = null;
+      _bookings.clear();
+      _messageThreads.clear();
+      notifyListeners();
+      return;
+    }
+
     await Future<void>.delayed(const Duration(milliseconds: 200));
     _currentUser = null;
     notifyListeners();
@@ -98,6 +190,47 @@ class AppRepository extends ChangeNotifier {
     String? company,
     String? badgeNumber,
   }) async {
+    if (_usesSupabase) {
+      try {
+        final response = await _client.auth.signUp(
+          email: email.trim(),
+          password: password,
+          data: <String, dynamic>{
+            'first_name': firstName,
+            'last_name': lastName,
+            'country_of_birth': countryOfBirth,
+            'date_of_birth': dateOfBirth.toIso8601String(),
+            'user_type': userType.name,
+            'company': company,
+            'badge_number': badgeNumber,
+          },
+        );
+        final authUser = response.user;
+        if (authUser == null) {
+          throw AuthException('Could not create account.');
+        }
+        final newUser = AppUser(
+          id: authUser.id,
+          email: email.trim(),
+          password: '',
+          firstName: firstName,
+          lastName: lastName,
+          countryOfBirth: countryOfBirth,
+          dateOfBirth: dateOfBirth,
+          userType: userType,
+          company: company,
+          badgeNumber: badgeNumber,
+        );
+        await _client.from('profiles').upsert(profileToRow(newUser));
+        _currentUser = newUser;
+        await _refreshCrashpads();
+        notifyListeners();
+        return;
+      } catch (error) {
+        throw AuthException('Could not create account: $error');
+      }
+    }
+
     await Future<void>.delayed(const Duration(milliseconds: 300));
     final alreadyExists = _users.any(
       (user) => user.email.toLowerCase() == email.toLowerCase(),
@@ -125,12 +258,26 @@ class AppRepository extends ChangeNotifier {
 
   /// Returns the list of available crashpads.
   Future<List<Crashpad>> fetchCrashpads() async {
+    if (_usesSupabase) {
+      await _refreshCrashpads();
+      return List.unmodifiable(_crashpads);
+    }
     await Future<void>.delayed(const Duration(milliseconds: 250));
     return List.unmodifiable(_crashpads);
   }
 
   /// Fetches listings owned by the provided email.
   Future<List<Crashpad>> fetchOwnerCrashpads(String ownerEmail) async {
+    if (_usesSupabase) {
+      await _refreshCrashpads();
+      return _crashpads
+          .where(
+            (crashpad) =>
+                crashpad.owner.contact?.toLowerCase() ==
+                ownerEmail.toLowerCase(),
+          )
+          .toList();
+    }
     await Future<void>.delayed(const Duration(milliseconds: 200));
     return _crashpads
         .where((crashpad) =>
@@ -139,6 +286,15 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<List<BookingRecord>> fetchGuestBookings(String guestEmail) async {
+    if (_usesSupabase) {
+      await _refreshBookings();
+      return _bookings
+          .where(
+            (booking) =>
+                booking.guestEmail.toLowerCase() == guestEmail.toLowerCase(),
+          )
+          .toList();
+    }
     await Future<void>.delayed(const Duration(milliseconds: 160));
     return _bookings
         .where(
@@ -149,6 +305,15 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<List<BookingRecord>> fetchOwnerBookings(String ownerEmail) async {
+    if (_usesSupabase) {
+      await _refreshBookings();
+      return _bookings
+          .where(
+            (booking) =>
+                booking.ownerEmail.toLowerCase() == ownerEmail.toLowerCase(),
+          )
+          .toList();
+    }
     await Future<void>.delayed(const Duration(milliseconds: 160));
     return _bookings
         .where(
@@ -192,6 +357,37 @@ class AppRepository extends ChangeNotifier {
     if (rooms.isEmpty) {
       throw ArgumentError('At least one room is required.');
     }
+    if (_usesSupabase) {
+      final newCrashpad = Crashpad(
+        id: _uuid.v4(),
+        name: name,
+        description: description,
+        location: location,
+        nearestAirport: nearestAirport,
+        owner: Owner(name: owner.displayName, contact: owner.email),
+        imageUrls: imageUrls,
+        dateAdded: DateTime.now(),
+        bedType: bedType,
+        price: price,
+        clickCount: 0,
+        rooms: rooms,
+        amenities: amenities,
+        houseRules: houseRules,
+        services: services,
+        checkoutCharges: checkoutCharges,
+        minimumStayNights: minimumStayNights,
+        distanceToAirportMiles: distanceToAirportMiles,
+        latitude: latitude,
+        longitude: longitude,
+      );
+      await _client
+          .from('listings')
+          .insert(crashpadToRow(newCrashpad, owner.id));
+      _crashpads.insert(0, newCrashpad);
+      notifyListeners();
+      return;
+    }
+
     await Future<void>.delayed(const Duration(milliseconds: 250));
     final newCrashpad = Crashpad(
       id: _uuid.v4(),
@@ -265,6 +461,19 @@ class AppRepository extends ChangeNotifier {
         'Resolve pending, confirmed, or active bookings before deleting.',
       );
     }
+    if (_usesSupabase) {
+      await _client
+          .from('listings')
+          .delete()
+          .inFilter('id', crashpadIds.toList());
+      _crashpads.removeWhere((crashpad) => crashpadIds.contains(crashpad.id));
+      for (final id in crashpadIds) {
+        _reviewsByCrashpad.remove(id);
+      }
+      notifyListeners();
+      return;
+    }
+
     await Future<void>.delayed(const Duration(milliseconds: 200));
     _crashpads.removeWhere((crashpad) => crashpadIds.contains(crashpad.id));
     for (final id in crashpadIds) {
@@ -289,6 +498,21 @@ class AppRepository extends ChangeNotifier {
       throw AuthException('You can only edit listings you own.');
     }
     canEditListingWithoutConflicts(updatedCrashpad);
+    if (_usesSupabase) {
+      final saved = updatedCrashpad.copyWith(
+        owner: Owner(name: owner.displayName, contact: owner.email),
+      );
+      await _client
+          .from('listings')
+          .update(
+            crashpadToRow(saved, owner.id)..remove('id'),
+          )
+          .eq('id', saved.id);
+      _crashpads[index] = saved;
+      notifyListeners();
+      return saved;
+    }
+
     await Future<void>.delayed(const Duration(milliseconds: 250));
     _crashpads[index] = updatedCrashpad.copyWith(
       owner: Owner(name: owner.displayName, contact: owner.email),
@@ -333,10 +557,30 @@ class AppRepository extends ChangeNotifier {
     if (ownerEmail == null || ownerEmail.trim().isEmpty) {
       throw StateError('This listing is missing owner contact information.');
     }
+    if (_usesSupabase) {
+      final booking = BookingRecord(
+        id: _uuid.v4(),
+        crashpadId: crashpad.id,
+        crashpadName: crashpad.name,
+        ownerEmail: ownerEmail,
+        guestId: guest.id,
+        guestName: guest.displayName,
+        guestEmail: guest.email,
+        checkInDate: draft.checkInDate,
+        checkOutDate: draft.checkOutDate,
+        guestCount: draft.guestCount,
+        paymentSummary: paymentSummary.copyWith(status: PaymentStatus.draft),
+        createdAt: DateTime.now(),
+        status: BookingStatus.pending,
+      );
+      await _client.from('bookings').insert(bookingToRow(booking));
+      _bookings.insert(0, booking);
+      notifyListeners();
+      return booking;
+    }
+
     await Future<void>.delayed(const Duration(milliseconds: 240));
-    final bookingPayment = paymentSummary.status == PaymentStatus.draft
-        ? paymentSummary.copyWith(status: PaymentStatus.authorized)
-        : paymentSummary;
+    final bookingPayment = paymentSummary.copyWith(status: PaymentStatus.draft);
     final booking = BookingRecord(
       id: _uuid.v4(),
       crashpadId: crashpad.id,
@@ -358,11 +602,22 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> approveBooking(String bookingId) async {
-    await _ownerTransition(
-      bookingId: bookingId,
-      from: BookingStatus.pending,
-      to: BookingStatus.confirmed,
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    final owner = _requireOwner();
+    final index = _bookingIndex(bookingId);
+    final booking = _bookings[index];
+    _ensureOwnerCanManage(owner, booking);
+    if (booking.status != BookingStatus.pending) {
+      throw StateError('This booking cannot move to awaiting payment.');
+    }
+    final updated = booking.copyWith(
+      status: BookingStatus.awaitingPayment,
+      paymentSummary:
+          _paymentService.markAwaitingPayment(booking.paymentSummary),
     );
+    _bookings[index] = updated;
+    await _persistBooking(updated);
+    notifyListeners();
   }
 
   Future<void> declineBooking(String bookingId) async {
@@ -389,6 +644,7 @@ class AppRepository extends ChangeNotifier {
     final booking = _bookings[index];
     final allowedStatuses = <BookingStatus>{
       BookingStatus.pending,
+      BookingStatus.awaitingPayment,
       BookingStatus.confirmed,
     };
     if (!allowedStatuses.contains(booking.status)) {
@@ -405,6 +661,7 @@ class AppRepository extends ChangeNotifier {
       throw AuthException('This account cannot cancel bookings.');
     }
     _bookings[index] = _cancelledBooking(booking);
+    await _persistBooking(_bookings[index]);
     notifyListeners();
   }
 
@@ -426,6 +683,7 @@ class AppRepository extends ChangeNotifier {
         charges,
       ),
     );
+    await _persistBooking(_bookings[index]);
     notifyListeners();
   }
 
@@ -491,6 +749,7 @@ class AppRepository extends ChangeNotifier {
       assignmentNote:
           assignmentNote.trim().isEmpty ? null : assignmentNote.trim(),
     );
+    await _persistBooking(_bookings[index]);
     notifyListeners();
   }
 
@@ -525,6 +784,7 @@ class AppRepository extends ChangeNotifier {
         submittedAt: DateTime.now(),
       ),
     );
+    await _persistBooking(_bookings[index]);
     notifyListeners();
   }
 
@@ -557,6 +817,7 @@ class AppRepository extends ChangeNotifier {
       ownerCheckoutNote:
           ownerCheckoutNote.trim().isEmpty ? null : ownerCheckoutNote.trim(),
     );
+    await _persistBooking(_bookings[index]);
     notifyListeners();
   }
 
@@ -568,11 +829,30 @@ class AppRepository extends ChangeNotifier {
     final updated = _crashpads[index]
         .copyWith(clickCount: _crashpads[index].clickCount + 1);
     _crashpads[index] = updated;
+    if (_usesSupabase) {
+      await _client
+          .from('listings')
+          .update(<String, dynamic>{'click_count': updated.clickCount}).eq(
+              'id', crashpadId);
+    }
     notifyListeners();
   }
 
   /// Retrieves reviews for the given crashpad.
   Future<List<Review>> fetchReviews(String crashpadId) async {
+    if (_usesSupabase) {
+      final rows = await _client
+          .from('reviews')
+          .select()
+          .eq('crashpad_id', crashpadId)
+          .order('created_at', ascending: false);
+      final reviews = (rows as List)
+          .cast<Map<String, dynamic>>()
+          .map(reviewFromRow)
+          .toList();
+      _reviewsByCrashpad[crashpadId] = reviews;
+      return List.unmodifiable(reviews);
+    }
     await Future<void>.delayed(const Duration(milliseconds: 200));
     return List.unmodifiable(_reviewsByCrashpad[crashpadId] ?? []);
   }
@@ -604,6 +884,16 @@ class AppRepository extends ChangeNotifier {
       createdAt: DateTime.now(),
     );
     _reviewsByCrashpad.putIfAbsent(crashpadId, () => []).add(review);
+    if (_usesSupabase) {
+      await _client.from('reviews').insert(<String, dynamic>{
+        'id': _uuid.v4(),
+        'crashpad_id': crashpadId,
+        'employee_id': guest.id,
+        'employee_name': guest.displayName,
+        'comment': comment,
+        'rating': rating,
+      });
+    }
     notifyListeners();
   }
 
@@ -674,10 +964,13 @@ class AppRepository extends ChangeNotifier {
     final ownerEmail = crashpad.owner.contact;
     final owner = ownerEmail == null
         ? null
-        : _users.cast<AppUser?>().firstWhere(
-              (user) => user?.email.toLowerCase() == ownerEmail.toLowerCase(),
-              orElse: () => null,
-            );
+        : _usesSupabase
+            ? await _fetchProfileByEmail(ownerEmail)
+            : _users.cast<AppUser?>().firstWhere(
+                  (user) =>
+                      user?.email.toLowerCase() == ownerEmail.toLowerCase(),
+                  orElse: () => null,
+                );
     if (owner == null) {
       throw StateError('This listing owner cannot receive messages.');
     }
@@ -695,6 +988,45 @@ class AppRepository extends ChangeNotifier {
       );
     }
     final now = DateTime.now();
+    if (_usesSupabase) {
+      final threadId = _uuid.v4();
+      final messageId = _uuid.v4();
+      await _client.from('message_threads').insert(<String, dynamic>{
+        'id': threadId,
+        'crashpad_id': crashpad.id,
+        'crashpad_name': crashpad.name,
+        'guest_id': guest.id,
+        'owner_id': owner.id,
+        'last_activity': now.toIso8601String(),
+      });
+      await _client.from('messages').insert(<String, dynamic>{
+        'id': messageId,
+        'thread_id': threadId,
+        'sender_id': guest.id,
+        'body': text.trim(),
+        'created_at': now.toIso8601String(),
+      });
+      final thread = MessageThread(
+        id: threadId,
+        crashpadId: crashpad.id,
+        crashpadName: crashpad.name,
+        guestId: guest.id,
+        ownerId: owner.id,
+        lastActivity: now,
+        messages: <ChatMessage>[
+          ChatMessage(
+            id: messageId,
+            senderId: guest.id,
+            text: text.trim(),
+            createdAt: now,
+          ),
+        ],
+      );
+      _messageThreads.insert(0, thread);
+      notifyListeners();
+      return thread;
+    }
+
     final thread = MessageThread(
       id: _uuid.v4(),
       crashpadId: crashpad.id,
@@ -737,6 +1069,18 @@ class AppRepository extends ChangeNotifier {
     }
     await Future<void>.delayed(const Duration(milliseconds: 160));
     final now = DateTime.now();
+    if (_usesSupabase) {
+      await _client.from('messages').insert(<String, dynamic>{
+        'id': _uuid.v4(),
+        'thread_id': threadId,
+        'sender_id': sender.id,
+        'body': text.trim(),
+        'created_at': now.toIso8601String(),
+      });
+      await _client.from('message_threads').update(<String, dynamic>{
+        'last_activity': now.toIso8601String(),
+      }).eq('id', threadId);
+    }
     final updated = thread.copyWith(
       lastActivity: now,
       messages: <ChatMessage>[
@@ -802,6 +1146,7 @@ class AppRepository extends ChangeNotifier {
 
   bool _reservesCapacity(BookingStatus status) {
     return status == BookingStatus.pending ||
+        status == BookingStatus.awaitingPayment ||
         status == BookingStatus.confirmed ||
         status == BookingStatus.active;
   }
@@ -852,6 +1197,7 @@ class AppRepository extends ChangeNotifier {
       throw StateError('This booking cannot move to ${to.label}.');
     }
     _bookings[index] = booking.copyWith(status: to);
+    await _persistBooking(_bookings[index]);
     notifyListeners();
   }
 
@@ -868,6 +1214,7 @@ class AppRepository extends ChangeNotifier {
       throw StateError('This booking cannot be declined or cancelled.');
     }
     _bookings[index] = _cancelledBooking(booking);
+    await _persistBooking(_bookings[index]);
     notifyListeners();
   }
 
@@ -974,11 +1321,16 @@ class AppRepository extends ChangeNotifier {
     }
     await Future<void>.delayed(const Duration(milliseconds: 250));
     final index = _users.indexWhere((user) => user.id == current.id);
-    if (index == -1) return;
     final updated = current.copyWith(isSubscribed: true);
-    _users[index] = updated;
+    if (index != -1) {
+      _users[index] = updated;
+    }
     if (identical(_currentUser, current)) {
       _currentUser = updated;
+    }
+    if (_usesSupabase) {
+      await _client.from('profiles').update(
+          <String, dynamic>{'is_subscribed': true}).eq('id', current.id);
     }
     notifyListeners();
   }
@@ -994,6 +1346,11 @@ class AppRepository extends ChangeNotifier {
       _users[index] = updated;
     }
     _currentUser = updated;
+    if (_usesSupabase) {
+      await _client.from('profiles').update(<String, dynamic>{
+        'avatar_base64': base64Image,
+      }).eq('id', current.id);
+    }
     notifyListeners();
   }
 
@@ -1023,6 +1380,14 @@ class AppRepository extends ChangeNotifier {
       _users[index] = updated;
     }
     _currentUser = updated;
+    if (_usesSupabase) {
+      await _client
+          .from('profiles')
+          .update(profileToRow(updated)
+            ..remove('id')
+            ..remove('email'))
+          .eq('id', current.id);
+    }
     for (var i = 0; i < _crashpads.length; i += 1) {
       final crashpad = _crashpads[i];
       if (crashpad.owner.contact?.toLowerCase() ==
@@ -1044,6 +1409,178 @@ class AppRepository extends ChangeNotifier {
       (sum, review) => sum + review.rating,
     );
     return total / reviews.length;
+  }
+
+  Future<Uri?> createStripeConnectOnboardingLink() async {
+    final owner = _requireOwner();
+    if (!_usesSupabase) return null;
+    final response = await _client.functions.invoke(
+      AppConfig.stripeConnectFunction,
+      body: <String, dynamic>{
+        'returnUrl': '${AppConfig.productionOrigin}/account',
+        'refreshUrl': '${AppConfig.productionOrigin}/account',
+        'displayName': owner.displayName,
+        'email': owner.email,
+      },
+    );
+    final data = _functionData(response.data);
+    final url = data['url']?.toString();
+    if (url == null || url.isEmpty) {
+      throw StateError('Stripe did not return an onboarding URL.');
+    }
+    return Uri.parse(url);
+  }
+
+  Future<Uri?> createBookingPaymentCheckout(BookingRecord booking) async {
+    final guest = _currentUser;
+    if (guest == null || !guest.isEmployee) {
+      throw AuthException('Only the booking guest can pay for this stay.');
+    }
+    if (booking.status != BookingStatus.awaitingPayment) {
+      throw StateError('This booking is not ready for payment.');
+    }
+    if (!_usesSupabase) {
+      final index = _bookingIndex(booking.id);
+      final updated = booking.copyWith(
+        status: BookingStatus.confirmed,
+        paymentSummary: _paymentService.captureMockPayment(
+          booking.paymentSummary,
+        ),
+      );
+      _bookings[index] = updated;
+      notifyListeners();
+      return null;
+    }
+    final response = await _client.functions.invoke(
+      AppConfig.stripeBookingCheckoutFunction,
+      body: <String, dynamic>{
+        'bookingId': booking.id,
+        'successUrl': '${AppConfig.productionOrigin}/account',
+        'cancelUrl': '${AppConfig.productionOrigin}/account',
+      },
+    );
+    final data = _functionData(response.data);
+    final url = data['url']?.toString();
+    if (url == null || url.isEmpty) {
+      throw StateError('Stripe did not return a checkout URL.');
+    }
+    return Uri.parse(url);
+  }
+
+  Future<void> confirmBookingPayment(String bookingId) async {
+    final index = _bookingIndex(bookingId);
+    final booking = _bookings[index];
+    if (booking.status != BookingStatus.awaitingPayment) {
+      throw StateError('This booking is not awaiting payment.');
+    }
+    final updated = booking.copyWith(
+      status: BookingStatus.confirmed,
+      paymentSummary: _paymentService.captureMockPayment(
+        booking.paymentSummary,
+      ),
+    );
+    _bookings[index] = updated;
+    await _persistBooking(updated);
+    notifyListeners();
+  }
+
+  Map<String, dynamic> _functionData(Object? data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) {
+      return data.map((key, value) => MapEntry(key.toString(), value));
+    }
+    if (data is String) {
+      final decoded = jsonDecode(data);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) {
+        return decoded.map((key, value) => MapEntry(key.toString(), value));
+      }
+    }
+    return const <String, dynamic>{};
+  }
+
+  Future<AppUser> _fetchProfile(String userId) async {
+    final row =
+        await _client.from('profiles').select().eq('id', userId).maybeSingle();
+    if (row == null) throw AuthException('Account profile not found');
+    final user = appUserFromProfile(row);
+    final index = _users.indexWhere((candidate) => candidate.id == user.id);
+    if (index == -1) {
+      _users.add(user);
+    } else {
+      _users[index] = user;
+    }
+    return user;
+  }
+
+  Future<AppUser?> _fetchProfileByEmail(String email) async {
+    final row = await _client
+        .from('profiles')
+        .select()
+        .eq('email', email)
+        .maybeSingle();
+    return row == null ? null : appUserFromProfile(row);
+  }
+
+  Future<void> _refreshCrashpads() async {
+    if (!_usesSupabase) return;
+    final rows = await _client
+        .from('listings')
+        .select()
+        .order('created_at', ascending: false);
+    _crashpads
+      ..clear()
+      ..addAll(
+        (rows as List).cast<Map<String, dynamic>>().map(crashpadFromRow),
+      );
+  }
+
+  Future<void> _refreshBookings() async {
+    if (!_usesSupabase || _currentUser == null) return;
+    final rows = await _client
+        .from('bookings')
+        .select()
+        .order('created_at', ascending: false);
+    _bookings
+      ..clear()
+      ..addAll(
+        (rows as List).cast<Map<String, dynamic>>().map(bookingFromRow),
+      );
+  }
+
+  Future<void> _refreshMessageThreads() async {
+    if (!_usesSupabase || _currentUser == null) return;
+    final threadRows = await _client
+        .from('message_threads')
+        .select()
+        .order('last_activity', ascending: false);
+    final threads = <MessageThread>[];
+    for (final thread in (threadRows as List).cast<Map<String, dynamic>>()) {
+      final messageRows = await _client
+          .from('messages')
+          .select()
+          .eq('thread_id', thread['id'] as String)
+          .order('created_at');
+      threads.add(
+        messageThreadFromRows(
+          thread: thread,
+          messages: (messageRows as List).cast<Map<String, dynamic>>(),
+        ),
+      );
+    }
+    _messageThreads
+      ..clear()
+      ..addAll(threads);
+  }
+
+  Future<void> _persistBooking(BookingRecord booking) async {
+    if (!_usesSupabase) return;
+    await _client
+        .from('bookings')
+        .update(
+          bookingToRow(booking)..remove('id'),
+        )
+        .eq('id', booking.id);
   }
 
   void _seedData() {

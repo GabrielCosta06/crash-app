@@ -13,5 +13,4 @@ Disallow: /create_listing
 Disallow: /edit_listing
 Disallow: /delete_listings
 
-# TODO: Replace https://YOUR_DOMAIN.com with the final production domain before deployment.
-Sitemap: https://YOUR_DOMAIN.com/sitemap.xml
+Sitemap: https://crash-pad-cold-dawn-1241.fly.dev/sitemap.xml

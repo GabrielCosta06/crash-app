@@ -118,18 +118,14 @@ void main() {
         ),
       ],
     );
-    final authorized = paymentService.authorizeMockPayment(
-      paymentService.buildSummary(draft),
-    );
-
     final booking = await repository.createBooking(
       crashpad: crashpad,
       draft: draft,
-      paymentSummary: authorized,
+      paymentSummary: paymentService.buildSummary(draft),
     );
 
     expect(booking.status, BookingStatus.pending);
-    expect(booking.paymentSummary.status, PaymentStatus.authorized);
+    expect(booking.paymentSummary.status, PaymentStatus.draft);
     expect(
       booking.paymentSummary.platformFeeRate,
       AppConfig.platformFeeRate,
@@ -153,7 +149,7 @@ void main() {
 
     await repository.logOut();
     await repository.logIn('owner@crashpads.com', 'owner123');
-    await repository.approveBooking(booking.id);
+    await _approveAndPay(repository, booking.id);
     expect(repository.bookings.single.status, BookingStatus.confirmed);
 
     await repository.checkInBooking(booking.id);
@@ -400,7 +396,7 @@ void main() {
 
     await repository.logOut();
     await repository.logIn('owner@crashpads.com', 'owner123');
-    await repository.approveBooking(booking.id);
+    await _approveAndPay(repository, booking.id);
     await repository.logOut();
     await repository.logIn('crew@crashpads.com', 'flysafe');
 
@@ -446,7 +442,7 @@ void main() {
       repository.approveBooking(booking.id),
       throwsA(isA<StateError>()),
     );
-    expect(repository.bookings.single.status, BookingStatus.confirmed);
+    expect(repository.bookings.single.status, BookingStatus.awaitingPayment);
   });
 
   test('guest checkout report is limited to the booking guest and active flow',
@@ -483,7 +479,7 @@ void main() {
 
     await repository.logOut();
     await repository.logIn('owner@crashpads.com', 'owner123');
-    await repository.approveBooking(booking.id);
+    await _approveAndPay(repository, booking.id);
     await expectLater(
       repository.submitCheckoutReport(
         bookingId: booking.id,
@@ -558,7 +554,7 @@ void main() {
 
     await repository.logOut();
     await repository.logIn('owner@crashpads.com', 'owner123');
-    await repository.approveBooking(booking.id);
+    await _approveAndPay(repository, booking.id);
     await repository.checkInBooking(booking.id);
 
     await expectLater(
@@ -635,7 +631,7 @@ void main() {
 
     await repository.logOut();
     await repository.logIn('owner@crashpads.com', 'owner123');
-    await repository.approveBooking(booking.id);
+    await _approveAndPay(repository, booking.id);
     await repository.checkInBooking(booking.id);
     await repository.logOut();
     await repository.logIn('crew@crashpads.com', 'flysafe');
@@ -858,7 +854,7 @@ void main() {
 
     await repository.logOut();
     await repository.logIn('owner@crashpads.com', 'owner123');
-    await repository.approveBooking(booking.id);
+    await _approveAndPay(repository, booking.id);
     final room = crashpad.rooms.firstWhere(
       (candidate) => candidate.bedModel != CrashpadBedModel.cold,
     );
@@ -919,7 +915,7 @@ void main() {
 
     await repository.logOut();
     await repository.logIn('owner@crashpads.com', 'owner123');
-    await repository.approveBooking(booking.id);
+    await _approveAndPay(repository, booking.id);
     await expectLater(
       repository.assignBookingBed(bookingId: booking.id, roomId: 'missing'),
       throwsA(isA<StateError>()),
@@ -964,7 +960,7 @@ void main() {
 
     await repository.logOut();
     await repository.logIn('owner@crashpads.com', 'owner123');
-    await repository.approveBooking(booking.id);
+    await _approveAndPay(repository, booking.id);
     await expectLater(
       repository.assignBookingBed(bookingId: booking.id, roomId: coldRoom.id),
       throwsA(isA<StateError>()),
@@ -1025,7 +1021,7 @@ void main() {
 
     await repository.logOut();
     await repository.logIn('owner@crashpads.com', 'owner123');
-    await repository.approveBooking(booking.id);
+    await _approveAndPay(repository, booking.id);
     await repository.checkInBooking(booking.id);
     await repository.completeBooking(bookingId: booking.id);
     await repository.logOut();
@@ -1041,4 +1037,10 @@ void main() {
     expect(reviews, hasLength(initialReviewCount + 1));
     expect(reviews.last.employeeName, guest.displayName);
   });
+}
+
+Future<void> _approveAndPay(AppRepository repository, String bookingId) async {
+  await repository.approveBooking(bookingId);
+  expect(repository.bookings.single.status, BookingStatus.awaitingPayment);
+  await repository.confirmBookingPayment(bookingId);
 }

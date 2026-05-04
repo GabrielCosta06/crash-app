@@ -58,15 +58,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  void _goToPayment() {
-    setState(() {
-      _error = null;
-      _stepIndex = 1;
-    });
-  }
-
   Future<void> _requestBooking() async {
-    if (!_paymentFormKey.currentState!.validate()) return;
+    final paymentForm = _paymentFormKey.currentState;
+    if (paymentForm != null && !paymentForm.validate()) return;
     if (_isSubmitting) return;
     final repository = context.read<AppRepository>();
     final user = repository.currentUser;
@@ -91,13 +85,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
 
     try {
-      final authorized = _paymentService.authorizeMockPayment(
-        widget.arguments.summary,
-      );
       final booking = await repository.createBooking(
         crashpad: widget.arguments.crashpad,
         draft: widget.arguments.draft,
-        paymentSummary: authorized,
+        paymentSummary: _paymentService.buildSummary(widget.arguments.draft),
       );
       if (!mounted) return;
       setState(() {
@@ -152,7 +143,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ? 'Request sent'
                 : _stepIndex == 0
                     ? 'Review booking'
-                    : 'Mock payment',
+                    : 'Payment details',
           ),
         ),
         body: SafeArea(
@@ -168,7 +159,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             crashpad: widget.arguments.crashpad,
                             draft: widget.arguments.draft,
                             summary: widget.arguments.summary,
-                            onContinue: _goToPayment,
+                            onContinue: _requestBooking,
+                            isSubmitting: _isSubmitting,
                           )
                         : _PaymentStep(
                             key: const ValueKey<String>('payment'),
@@ -205,12 +197,14 @@ class _RequestReview extends StatelessWidget {
     required this.draft,
     required this.summary,
     required this.onContinue,
+    required this.isSubmitting,
   });
 
   final Crashpad crashpad;
   final BookingDraft draft;
   final PaymentSummary summary;
   final VoidCallback onContinue;
+  final bool isSubmitting;
 
   @override
   Widget build(BuildContext context) {
@@ -232,14 +226,23 @@ class _RequestReview extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: AppPrimaryButton(
-                onPressed: onContinue,
-                icon: Icons.credit_card_outlined,
-                child: const Text('Continue to mock payment'),
+                onPressed: isSubmitting ? null : onContinue,
+                icon: isSubmitting ? null : Icons.send_outlined,
+                child: isSubmitting
+                    ? Semantics(
+                        label: 'Sending booking request',
+                        child: const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : const Text('Send booking request'),
               ),
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Mock checkout only. Your payment is authorized now and captured only after owner checkout completion.',
+              'No payment is collected yet. The owner approves first, then Stripe Checkout opens from your booking history.',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
@@ -376,7 +379,7 @@ class _PaymentStep extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 const StatusBadge(
-                  label: 'Mock payment authorization',
+                  label: 'Payment fallback',
                   icon: Icons.lock_outline,
                   color: AppPalette.blueSoft,
                 ),
@@ -387,7 +390,7 @@ class _PaymentStep extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Use any card-like values. This does not process a real payment or store card data.',
+                  'This fallback is used only when running without Supabase and Stripe configuration.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppPalette.textMuted,
                       ),
@@ -513,7 +516,7 @@ class _PaymentStep extends StatelessWidget {
                                 ),
                               ),
                             )
-                          : const Text('Authorize mock payment'),
+                          : const Text('Send booking request'),
                     ),
                   ],
                 ),
@@ -527,7 +530,7 @@ class _PaymentStep extends StatelessWidget {
             PaymentSummaryCard(summary: summary),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Authorization only. The owner captures the final mock payment after checkout is complete.',
+              'Production payment is collected through Stripe Checkout after owner approval.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppPalette.textMuted,
                   ),
@@ -594,7 +597,7 @@ class _PendingConfirmation extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'The owner will approve or decline this request. Your payment authorization is held until checkout, and you can cancel it from your booking history while it is pending.',
+            'The owner will approve or decline this request. If approved, you can complete Stripe Checkout from your booking history before the stay is confirmed.',
             style: Theme.of(
               context,
             ).textTheme.bodyLarge?.copyWith(color: AppPalette.textMuted),

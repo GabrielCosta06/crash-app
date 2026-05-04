@@ -1,0 +1,13 @@
+project_id = "crash-app"
+
+[functions.create-stripe-connect-account]
+verify_jwt = true
+
+[functions.create-booking-checkout]
+verify_jwt = true
+
+[functions.create-checkout-charge-session]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false

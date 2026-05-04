@@ -80,88 +80,90 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 color: AppPalette.deepSpace.withValues(alpha: 0.85),
                 border: Border.all(color: AppPalette.border),
               ),
-              child: Form(
-                key: _formKey,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.mail_lock_outlined,
-                        size: 48, color: AppPalette.neonPulse),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Reset your access code',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Enter your crew email and we\'ll send over a secure reset link.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: AppPalette.softSlate),
-                    ),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      controller: _emailController,
-                      enabled: !_isSubmitting,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.done,
-                      autocorrect: false,
-                      onFieldSubmitted: (_) {
-                        if (!_isSubmitting) _sendResetLink();
-                      },
-                      decoration: const InputDecoration(
-                        labelText: 'Crew email',
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                      validator: (value) {
-                        if (value == null ||
-                            value.trim().isEmpty ||
-                            !value.contains('@')) {
-                          return 'Enter a valid email address';
-                        }
-                        return null;
-                      },
-                    ),
-                    if (_errorMessage != null) ...<Widget>[
-                      const SizedBox(height: AppSpacing.md),
+              child: SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.mail_lock_outlined,
+                          size: 48, color: AppPalette.neonPulse),
+                      const SizedBox(height: 16),
                       Text(
-                        _errorMessage!,
-                        style: const TextStyle(
-                          color: AppPalette.danger,
-                          fontSize: 12,
+                        'Reset your access code',
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Enter your crew email and we\'ll send over a secure reset link.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: AppPalette.softSlate),
+                      ),
+                      const SizedBox(height: 24),
+                      TextFormField(
+                        controller: _emailController,
+                        enabled: !_isSubmitting,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                        autocorrect: false,
+                        onFieldSubmitted: (_) {
+                          if (!_isSubmitting) _sendResetLink();
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Crew email',
+                          prefixIcon: Icon(Icons.email_outlined),
                         ),
+                        validator: (value) {
+                          if (value == null ||
+                              value.trim().isEmpty ||
+                              !value.contains('@')) {
+                            return 'Enter a valid email address';
+                          }
+                          return null;
+                        },
+                      ),
+                      if (_errorMessage != null) ...<Widget>[
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            color: AppPalette.danger,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      TapScale(
+                        enabled: !_isSubmitting,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: AppPrimaryButton(
+                            onPressed: _isSubmitting ? null : _sendResetLink,
+                            child: _isSubmitting
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Text('Send reset link'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Back to sign in'),
                       ),
                     ],
-                    const SizedBox(height: 24),
-                    TapScale(
-                      enabled: !_isSubmitting,
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: AppPrimaryButton(
-                          onPressed: _isSubmitting ? null : _sendResetLink,
-                          child: _isSubmitting
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Text('Send reset link'),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Back to sign in'),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),

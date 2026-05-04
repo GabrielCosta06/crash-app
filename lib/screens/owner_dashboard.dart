@@ -193,8 +193,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     var ownerCheckoutNote = '';
     if (status == BookingStatus.completed) {
       final listing = context.read<AppRepository>().findCrashpadById(
-        booking.crashpadId,
-      );
+            booking.crashpadId,
+          );
       final completion = await showDialog<_CheckoutCompletionDraft>(
         context: context,
         builder: (context) => _CheckoutChargeDialog(
@@ -234,6 +234,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     try {
       final repository = context.read<AppRepository>();
       switch (status) {
+        case BookingStatus.awaitingPayment:
+          throw StateError('Guest payment is required before confirmation.');
         case BookingStatus.confirmed:
           await repository.approveBooking(booking.id);
           break;
@@ -259,9 +261,13 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           throw StateError('Unsupported owner booking transition.');
       }
       if (!mounted) return;
+      final resultLabel = status == BookingStatus.confirmed &&
+              booking.status == BookingStatus.pending
+          ? BookingStatus.awaitingPayment.label
+          : status.label;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Stay moved to ${status.label}.')));
+      ).showSnackBar(SnackBar(content: Text('Stay moved to $resultLabel.')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -278,6 +284,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     switch (status) {
       case BookingStatus.confirmed:
         return 'Approve this request?';
+      case BookingStatus.awaitingPayment:
+        return 'Waiting for guest payment';
       case BookingStatus.cancelled:
         return 'Cancel this booking?';
       case BookingStatus.active:
@@ -293,7 +301,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   String _statusDialogMessage(BookingStatus status, BookingRecord booking) {
     switch (status) {
       case BookingStatus.confirmed:
-        return 'Approve ${booking.guestName} for ${booking.crashpadName}. The guest will see the stay as confirmed.';
+        return 'Approve ${booking.guestName} for ${booking.crashpadName}. The guest will receive a Stripe Checkout payment request before the stay is confirmed.';
+      case BookingStatus.awaitingPayment:
+        return 'The owner approved this request. The guest must complete payment before check-in.';
       case BookingStatus.cancelled:
         return 'This moves ${booking.crashpadName} to Cancelled and removes it from active booking lists.';
       case BookingStatus.active:
@@ -310,6 +320,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     switch (status) {
       case BookingStatus.confirmed:
         return 'Approve Request';
+      case BookingStatus.awaitingPayment:
+        return 'Waiting for Payment';
       case BookingStatus.cancelled:
         return 'Cancel Booking';
       case BookingStatus.active:
@@ -723,8 +735,7 @@ class _ManualAssignmentDialogState extends State<_ManualAssignmentDialog> {
   Widget build(BuildContext context) {
     final listing = _listingFor(_selectedBooking);
     final room = _selectedRoom(listing);
-    final beds =
-        room?.beds
+    final beds = room?.beds
             .where(
               (bed) =>
                   room.bedModel != CrashpadBedModel.cold ||
@@ -991,8 +1002,8 @@ class _OwnerHero extends StatelessWidget {
                       Text(
                         '${listings.length} active properties',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppPalette.textMuted,
-                        ),
+                              color: AppPalette.textMuted,
+                            ),
                       ),
                     ],
                   ),
@@ -1072,8 +1083,8 @@ class _Metrics extends StatelessWidget {
         final columns = constraints.maxWidth >= AppBreakpoints.desktop
             ? 4
             : constraints.maxWidth >= AppBreakpoints.tablet
-            ? 2
-            : 1;
+                ? 2
+                : 1;
         final metrics = <MetricCard>[
           MetricCard(
             label: 'Physical beds',
@@ -1214,8 +1225,8 @@ class _InventoryRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppPalette.textMuted,
-                    ),
+                          color: AppPalette.textMuted,
+                        ),
                   ),
                 ],
               );
@@ -1350,12 +1361,16 @@ class _BookingWorkflowPanel extends StatelessWidget {
   final List<BookingRecord> bookings;
   final String? updatingBookingId;
   final Future<void> Function(BookingRecord booking, BookingStatus status)
-  onSetStatus;
+      onSetStatus;
 
   @override
   Widget build(BuildContext context) {
     final pending = bookings
-        .where((booking) => booking.status == BookingStatus.pending)
+        .where(
+          (booking) =>
+              booking.status == BookingStatus.pending ||
+              booking.status == BookingStatus.awaitingPayment,
+        )
         .toList();
     final active = bookings
         .where(
@@ -1460,7 +1475,7 @@ class _OwnerBookingList extends StatelessWidget {
   final String emptyMessage;
   final String? updatingBookingId;
   final Future<void> Function(BookingRecord booking, BookingStatus status)
-  onSetStatus;
+      onSetStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -1528,6 +1543,8 @@ class _OwnerBookingList extends StatelessWidget {
             outlined: true,
           ),
         );
+      case BookingStatus.awaitingPayment:
+        return const _BookingCardActions();
       case BookingStatus.confirmed:
         return _BookingCardActions(
           primary: button(
@@ -1714,8 +1731,8 @@ class _DashboardMetricSkeletonGrid extends StatelessWidget {
         final columns = constraints.maxWidth >= AppBreakpoints.desktop
             ? 4
             : constraints.maxWidth >= AppBreakpoints.tablet
-            ? 2
-            : 1;
+                ? 2
+                : 1;
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),

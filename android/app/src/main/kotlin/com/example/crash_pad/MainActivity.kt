@@ -1,4 +1,4 @@
-package com.example.crash_pad
+package com.crashapp.marketplace
 
 import io.flutter.embedding.android.FlutterActivity
 

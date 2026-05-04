@@ -16,6 +16,10 @@ class PaymentService {
     return summary.copyWith(status: PaymentStatus.authorized);
   }
 
+  PaymentSummary markAwaitingPayment(PaymentSummary summary) {
+    return summary.copyWith(status: PaymentStatus.awaitingPayment);
+  }
+
   PaymentSummary captureMockPayment(PaymentSummary summary) {
     if (summary.status == PaymentStatus.failed ||
         summary.status == PaymentStatus.refunded) {
@@ -26,6 +30,7 @@ class PaymentService {
 
   PaymentSummary refundMockPayment(PaymentSummary summary) {
     if (summary.status == PaymentStatus.paid ||
+        summary.status == PaymentStatus.awaitingPayment ||
         summary.status == PaymentStatus.authorized) {
       return summary.copyWith(status: PaymentStatus.refunded);
     }
@@ -39,10 +44,11 @@ class PaymentService {
     PaymentSummary summary,
     List<ChargeLineItem> checkoutCharges,
   ) {
-    if (summary.status == PaymentStatus.paid ||
-        summary.status == PaymentStatus.refunded ||
+    if (summary.status == PaymentStatus.refunded ||
         summary.status == PaymentStatus.failed) {
-      throw StateError('Checkout charges can only be changed before capture.');
+      throw StateError(
+        'Checkout charges cannot be changed after failure or refund.',
+      );
     }
     return summary.copyWith(
         checkoutCharges: List.unmodifiable(checkoutCharges));

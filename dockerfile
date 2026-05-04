@@ -4,6 +4,10 @@ FROM ghcr.io/cirruslabs/flutter:stable AS builder
 # Set working directory
 WORKDIR /app
 
+ARG CRASH_APP_ORIGIN=https://crash-pad-cold-dawn-1241.fly.dev
+ARG SUPABASE_URL=
+ARG SUPABASE_ANON_KEY=
+
 # Copy all files into the container
 COPY . .
 
@@ -13,7 +17,10 @@ RUN flutter config --enable-web
 RUN flutter pub get
 
 # Build the Flutter web app in release mode
-RUN flutter build web --release
+RUN flutter build web --release \
+    --dart-define=CRASH_APP_ORIGIN=${CRASH_APP_ORIGIN} \
+    --dart-define=SUPABASE_URL=${SUPABASE_URL} \
+    --dart-define=SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
 
 
 # === Stage 2: Serve the built app using Nginx ===

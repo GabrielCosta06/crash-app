@@ -3,6 +3,7 @@ import 'payment.dart';
 enum BookingStatus {
   draft,
   pending,
+  awaitingPayment,
   confirmed,
   active,
   completed,
@@ -16,6 +17,8 @@ extension BookingStatusLabel on BookingStatus {
         return 'Draft';
       case BookingStatus.pending:
         return 'Pending';
+      case BookingStatus.awaitingPayment:
+        return 'Awaiting payment';
       case BookingStatus.confirmed:
         return 'Confirmed';
       case BookingStatus.active:

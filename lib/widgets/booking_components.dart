@@ -32,6 +32,13 @@ BookingStatusStyle bookingStatusStyle(BookingStatus status) {
         icon: Icons.hourglass_top_outlined,
         color: AppPalette.warning,
       );
+    case BookingStatus.awaitingPayment:
+      return const BookingStatusStyle(
+        label: 'Awaiting guest payment',
+        description: 'The owner approved this stay. Guest payment is next.',
+        icon: Icons.credit_card_outlined,
+        color: AppPalette.blueSoft,
+      );
     case BookingStatus.confirmed:
       return const BookingStatusStyle(
         label: 'Confirmed',
@@ -159,6 +166,8 @@ class BookingPriceSummaryCard extends StatelessWidget {
     switch (status) {
       case PaymentStatus.draft:
         return 'Estimate';
+      case PaymentStatus.awaitingPayment:
+        return 'Payment due';
       case PaymentStatus.authorized:
         return 'Pay later';
       case PaymentStatus.paid:
@@ -310,6 +319,8 @@ class BookingRecordCard extends StatelessWidget {
     switch (status) {
       case PaymentStatus.draft:
         return 'Quote';
+      case PaymentStatus.awaitingPayment:
+        return 'Payment due';
       case PaymentStatus.authorized:
         return 'Authorized';
       case PaymentStatus.paid:
@@ -329,6 +340,7 @@ class BookingRecordCard extends StatelessWidget {
       case PaymentStatus.refunded:
         return AppPalette.danger;
       case PaymentStatus.draft:
+      case PaymentStatus.awaitingPayment:
       case PaymentStatus.authorized:
         return AppPalette.blueSoft;
     }

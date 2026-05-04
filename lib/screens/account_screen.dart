@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/app_repository.dart';
 import '../models/app_user.dart';
@@ -174,6 +175,58 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _payForBooking(BookingRecord booking) async {
+    try {
+      final checkoutUrl =
+          await context.read<AppRepository>().createBookingPaymentCheckout(
+                booking,
+              );
+      if (!mounted) return;
+      if (checkoutUrl == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mock payment completed.')),
+        );
+        return;
+      }
+      final launched = await launchUrl(
+        checkoutUrl,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        setState(() => _accountError = 'Could not open Stripe Checkout.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _accountError = 'Could not start payment. $error');
+    }
+  }
+
+  Future<void> _openStripeOnboarding() async {
+    try {
+      final url = await context
+          .read<AppRepository>()
+          .createStripeConnectOnboardingLink();
+      if (!mounted) return;
+      if (url == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mock owner payouts are enabled.')),
+        );
+        return;
+      }
+      final launched = await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        setState(() => _accountError = 'Could not open Stripe onboarding.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(
+          () => _accountError = 'Could not start Stripe onboarding. $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<AppRepository>();
@@ -237,6 +290,28 @@ class _AccountScreenState extends State<AccountScreen> {
                 onPickAvatar: _pickAvatar,
                 onEditProfile: () => _editProfile(user),
               ),
+              if (user.isOwner) ...<Widget>[
+                const SizedBox(height: AppSpacing.lg),
+                CrashSurface(
+                  child: Row(
+                    children: <Widget>[
+                      const Icon(Icons.account_balance_outlined),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Text(
+                          'Connect Stripe to receive owner payouts after guest bookings are paid.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _openStripeOnboarding,
+                        icon: const Icon(Icons.open_in_new_outlined),
+                        label: const Text('Set up payouts'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (_accountError != null) ...<Widget>[
                 const SizedBox(height: AppSpacing.lg),
                 _AccountErrorPanel(
@@ -277,6 +352,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 user: user,
                 onCancelBooking: _cancelBooking,
                 onSubmitCheckoutReport: _submitCheckoutReport,
+                onPayForBooking: _payForBooking,
               ),
               const SizedBox(height: AppSpacing.xxxl),
               _ReviewHistorySection(reviews: reviews, user: user),
@@ -572,17 +648,23 @@ class _BookingHistorySection extends StatelessWidget {
     required this.user,
     required this.onCancelBooking,
     required this.onSubmitCheckoutReport,
+    required this.onPayForBooking,
   });
 
   final List<BookingRecord> bookings;
   final AppUser user;
   final Future<void> Function(BookingRecord booking) onCancelBooking;
   final Future<void> Function(BookingRecord booking) onSubmitCheckoutReport;
+  final Future<void> Function(BookingRecord booking) onPayForBooking;
 
   @override
   Widget build(BuildContext context) {
     final pending = bookings
-        .where((booking) => booking.status == BookingStatus.pending)
+        .where(
+          (booking) =>
+              booking.status == BookingStatus.pending ||
+              booking.status == BookingStatus.awaitingPayment,
+        )
         .toList();
     final active = bookings
         .where(
@@ -640,6 +722,7 @@ class _BookingHistorySection extends StatelessWidget {
                           : 'Request a crashpad and it will appear here while the owner reviews it.',
                       onCancelBooking: onCancelBooking,
                       onSubmitCheckoutReport: onSubmitCheckoutReport,
+                      onPayForBooking: onPayForBooking,
                     ),
                     _BookingHistoryList(
                       bookings: active,
@@ -650,6 +733,7 @@ class _BookingHistorySection extends StatelessWidget {
                           : 'Owner-approved stays appear here.',
                       onCancelBooking: onCancelBooking,
                       onSubmitCheckoutReport: onSubmitCheckoutReport,
+                      onPayForBooking: onPayForBooking,
                     ),
                     _BookingHistoryList(
                       bookings: past,
@@ -659,6 +743,7 @@ class _BookingHistorySection extends StatelessWidget {
                           'Completed stays will be saved here for your records.',
                       onCancelBooking: onCancelBooking,
                       onSubmitCheckoutReport: onSubmitCheckoutReport,
+                      onPayForBooking: onPayForBooking,
                     ),
                     _BookingHistoryList(
                       bookings: cancelled,
@@ -668,6 +753,7 @@ class _BookingHistorySection extends StatelessWidget {
                           'Cancelled or declined bookings stay separate from active trips.',
                       onCancelBooking: onCancelBooking,
                       onSubmitCheckoutReport: onSubmitCheckoutReport,
+                      onPayForBooking: onPayForBooking,
                     ),
                   ],
                 ),
@@ -688,6 +774,7 @@ class _BookingHistoryList extends StatelessWidget {
     required this.emptyMessage,
     required this.onCancelBooking,
     required this.onSubmitCheckoutReport,
+    required this.onPayForBooking,
   });
 
   final List<BookingRecord> bookings;
@@ -696,6 +783,7 @@ class _BookingHistoryList extends StatelessWidget {
   final String emptyMessage;
   final Future<void> Function(BookingRecord booking) onCancelBooking;
   final Future<void> Function(BookingRecord booking) onSubmitCheckoutReport;
+  final Future<void> Function(BookingRecord booking) onPayForBooking;
 
   @override
   Widget build(BuildContext context) {
@@ -710,32 +798,41 @@ class _BookingHistoryList extends StatelessWidget {
         final booking = bookings[index];
         final canCancel = user.isEmployee &&
             (booking.status == BookingStatus.pending ||
+                booking.status == BookingStatus.awaitingPayment ||
                 booking.status == BookingStatus.confirmed);
         final canSubmitCheckout = user.isEmployee &&
             (booking.status == BookingStatus.confirmed ||
                 booking.status == BookingStatus.active);
+        final canPay =
+            user.isEmployee && booking.status == BookingStatus.awaitingPayment;
         return BookingRecordCard(
           booking: booking,
           perspective: user.isOwner
               ? BookingPerspective.owner
               : BookingPerspective.guest,
-          primaryAction: canSubmitCheckout
+          primaryAction: canPay
               ? ElevatedButton.icon(
-                  onPressed: () => onSubmitCheckoutReport(booking),
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                  label: Text(
-                    booking.checkoutReport == null
-                        ? 'Submit checkout report'
-                        : 'Update checkout report',
-                  ),
+                  onPressed: () => onPayForBooking(booking),
+                  icon: const Icon(Icons.credit_card_outlined),
+                  label: const Text('Pay with Stripe'),
                 )
-              : canCancel
-                  ? OutlinedButton.icon(
-                      onPressed: () => onCancelBooking(booking),
-                      icon: const Icon(Icons.cancel_outlined),
-                      label: const Text('Cancel Booking'),
+              : canSubmitCheckout
+                  ? ElevatedButton.icon(
+                      onPressed: () => onSubmitCheckoutReport(booking),
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: Text(
+                        booking.checkoutReport == null
+                            ? 'Submit checkout report'
+                            : 'Update checkout report',
+                      ),
                     )
-                  : null,
+                  : canCancel
+                      ? OutlinedButton.icon(
+                          onPressed: () => onCancelBooking(booking),
+                          icon: const Icon(Icons.cancel_outlined),
+                          label: const Text('Cancel Booking'),
+                        )
+                      : null,
           secondaryAction: canSubmitCheckout && canCancel
               ? OutlinedButton.icon(
                   onPressed: () => onCancelBooking(booking),

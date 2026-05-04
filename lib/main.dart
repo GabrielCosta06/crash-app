@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config/app_config.dart';
 import 'data/app_repository.dart';
 import 'models/app_user.dart';
 import 'screens/checkout_screen.dart';
@@ -25,6 +29,15 @@ const Duration _navAnimationDuration = Duration(milliseconds: 260);
 /// Entry point for the Crashpad experience.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (AppConfig.isSupabaseConfigured) {
+    await Supabase.initialize(
+      url: AppConfig.supabaseUrl,
+      anonKey: AppConfig.supabaseAnonKey,
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+      ),
+    );
+  }
   runApp(const MyApp());
 }
 
@@ -43,7 +56,11 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _repository = AppRepository()..addListener(_handleRepositoryChanged);
+    _repository = AppRepository(
+      supabaseClient:
+          AppConfig.isSupabaseConfigured ? Supabase.instance.client : null,
+    )..addListener(_handleRepositoryChanged);
+    unawaited(_repository.initialize());
     _isAuthenticated = _repository.isAuthenticated;
   }
 

@@ -608,6 +608,8 @@ class PaymentSummaryCard extends StatelessWidget {
     switch (status) {
       case PaymentStatus.draft:
         return 'Quote';
+      case PaymentStatus.awaitingPayment:
+        return 'Payment due';
       case PaymentStatus.authorized:
         return 'Authorized';
       case PaymentStatus.paid:

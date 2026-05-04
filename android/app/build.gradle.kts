@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.crash_pad"
+    namespace = "com.crashapp.marketplace"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,8 +20,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.crash_pad"
+        applicationId = "com.crashapp.marketplace"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -30,11 +29,25 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("CRASH_APP_UPLOAD_KEYSTORE")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("CRASH_APP_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("CRASH_APP_KEY_ALIAS")
+                keyPassword = System.getenv("CRASH_APP_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            val hasReleaseKeystore =
+                !System.getenv("CRASH_APP_UPLOAD_KEYSTORE").isNullOrBlank()
+            signingConfig = signingConfigs.getByName(
+                if (hasReleaseKeystore) "release" else "debug"
+            )
         }
     }
 }
