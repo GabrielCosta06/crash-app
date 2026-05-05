@@ -124,11 +124,29 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   if (filtered.isEmpty)
-                    const EmptyStatePanel(
+                    EmptyStatePanel(
                       icon: Icons.travel_explore_outlined,
-                      title: 'No crashpads match that search',
-                      message:
-                          'Try another airport, city, or bed model to discover more options.',
+                      title: crashpads.isEmpty
+                          ? 'No crashpads are live yet'
+                          : 'No crashpads match that search',
+                      message: crashpads.isEmpty
+                          ? 'Owner-created listings will appear here as soon as the first crashpads go live.'
+                          : 'Try another airport, city, or bed model to discover more options.',
+                      action: crashpads.isEmpty
+                          ? AppSecondaryButton(
+                              onPressed: () => widget.onUpdateIndex?.call(
+                                widget.managementIndex ?? 1,
+                              ),
+                              icon: widget.managementIndex == null
+                                  ? Icons.search_outlined
+                                  : Icons.add_home_work_outlined,
+                              child: Text(
+                                widget.managementIndex == null
+                                    ? 'Check search'
+                                    : 'Create your first listing',
+                              ),
+                            )
+                          : null,
                     )
                   else
                     _ListingGrid(

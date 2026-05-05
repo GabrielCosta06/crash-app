@@ -15,10 +15,18 @@ class AppConfig {
   static bool get isSupabaseConfigured =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 
+  static List<String> get missingSupabaseKeys => <String>[
+        if (supabaseUrl.isEmpty) 'SUPABASE_URL',
+        if (supabaseAnonKey.isEmpty) 'SUPABASE_ANON_KEY',
+      ];
+
   static const String stripeConnectFunction = 'create-stripe-connect-account';
   static const String stripeBookingCheckoutFunction = 'create-booking-checkout';
   static const String stripeCheckoutChargeFunction =
       'create-checkout-charge-session';
+  static const String stripeSubscriptionCheckoutFunction =
+      'create-subscription-checkout';
+  static const String stripeBillingPortalFunction = 'create-billing-portal';
 
   /// Crash App currently monetizes through a transaction fee.
   ///

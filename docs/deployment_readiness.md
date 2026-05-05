@@ -23,6 +23,7 @@ Function secrets:
 supabase secrets set \
   STRIPE_SECRET_KEY=sk_test_... \
   STRIPE_WEBHOOK_SECRET=whsec_... \
+  STRIPE_PREMIUM_PRICE_ID=price_... \
   CRASH_APP_ORIGIN=https://crash-pad-cold-dawn-1241.fly.dev
 ```
 
@@ -32,6 +33,8 @@ Deploy functions:
 supabase functions deploy create-stripe-connect-account
 supabase functions deploy create-booking-checkout
 supabase functions deploy create-checkout-charge-session
+supabase functions deploy create-subscription-checkout
+supabase functions deploy create-billing-portal
 supabase functions deploy stripe-webhook --no-verify-jwt
 ```
 
@@ -41,8 +44,11 @@ Configure Stripe webhooks to call:
 https://<project-ref>.functions.supabase.co/stripe-webhook
 ```
 
-Listen for at least `checkout.session.completed`, `account.updated`, and the
-Accounts v2 account update event emitted by your Stripe account.
+Listen for at least `checkout.session.completed`,
+`customer.subscription.created`, `customer.subscription.updated`,
+`customer.subscription.deleted`, `account.updated`, and the Accounts v2 account
+update event emitted by your Stripe account. Configure the Stripe Customer
+Portal before enabling the in-app billing management button.
 
 ## Mobile Release
 

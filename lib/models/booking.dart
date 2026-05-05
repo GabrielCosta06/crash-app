@@ -136,6 +136,7 @@ class BookingRecord {
     this.status = BookingStatus.confirmed,
     this.checkoutReport,
     this.ownerCheckoutNote,
+    this.checkoutChargePaymentStatus = PaymentStatus.draft,
     this.assignedRoomId,
     this.assignedRoomName,
     this.assignedBedId,
@@ -166,6 +167,7 @@ class BookingRecord {
   final BookingStatus status;
   final CheckoutReport? checkoutReport;
   final String? ownerCheckoutNote;
+  final PaymentStatus checkoutChargePaymentStatus;
   final String? assignedRoomId;
   final String? assignedRoomName;
   final String? assignedBedId;
@@ -181,6 +183,7 @@ class BookingRecord {
     PaymentSummary? paymentSummary,
     CheckoutReport? checkoutReport,
     String? ownerCheckoutNote,
+    PaymentStatus? checkoutChargePaymentStatus,
     String? assignedRoomId,
     String? assignedRoomName,
     String? assignedBedId,
@@ -203,6 +206,8 @@ class BookingRecord {
       status: status ?? this.status,
       checkoutReport: checkoutReport ?? this.checkoutReport,
       ownerCheckoutNote: ownerCheckoutNote ?? this.ownerCheckoutNote,
+      checkoutChargePaymentStatus:
+          checkoutChargePaymentStatus ?? this.checkoutChargePaymentStatus,
       assignedRoomId: assignedRoomId ?? this.assignedRoomId,
       assignedRoomName: assignedRoomName ?? this.assignedRoomName,
       assignedBedId: assignedBedId ?? this.assignedBedId,

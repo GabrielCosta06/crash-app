@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:crash_pad/config/app_config.dart';
 import 'package:crash_pad/data/app_repository.dart';
 import 'package:crash_pad/models/app_user.dart';
@@ -8,9 +10,19 @@ import 'package:crash_pad/services/availability_service.dart';
 import 'package:crash_pad/services/payment_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fixtures/crashpad_test_seed.dart';
+
 void main() {
+  test('production repository no longer imports runtime mock seed data', () {
+    final repositorySource =
+        File('lib/data/app_repository.dart').readAsStringSync();
+    expect(repositorySource, isNot(contains('mock_crashpad_data')));
+    expect(File('lib/data/mock_crashpad_data.dart').existsSync(), isFalse);
+    expect(File('test/fixtures/crashpad_test_seed.dart').existsSync(), isTrue);
+  });
+
   test('owner-created crashpad stores real room capacity and fees', () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
 
     await repository.logIn('owner@crashpads.com', 'owner123');
     await repository.addCrashpad(
@@ -90,7 +102,7 @@ void main() {
 
   test('guest booking is visible to owner and can move through stay workflow',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
 
     await repository.logIn('owner@crashpads.com', 'owner123');
@@ -167,7 +179,13 @@ void main() {
       ],
       ownerCheckoutNote: 'Cleaning fee assessed after checkout.',
     );
+    expect(repository.bookings.single.status, BookingStatus.active);
+    expect(repository.bookings.single.checkoutChargePaymentStatus,
+        PaymentStatus.awaitingPayment);
+    await repository.confirmCheckoutChargePayment(booking.id);
     expect(repository.bookings.single.status, BookingStatus.completed);
+    expect(repository.bookings.single.checkoutChargePaymentStatus,
+        PaymentStatus.paid);
     expect(
         repository.bookings.single.paymentSummary.status, PaymentStatus.paid);
     expect(repository.bookings.single.paymentSummary.checkoutChargesTotal, 35);
@@ -175,7 +193,7 @@ void main() {
 
   test('booking creation enforces minimum stay and reserved capacity',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -219,7 +237,7 @@ void main() {
   });
 
   test('pending overlapping bookings reserve capacity', () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -266,7 +284,7 @@ void main() {
 
   test('date-aware availability reflects pending booking reservations',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
     final staticAvailability =
@@ -310,7 +328,7 @@ void main() {
 
   test('guest and owner permissions are enforced for booking workflow',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -373,7 +391,7 @@ void main() {
 
   test('confirmed guest cancellation is blocked inside 24 hour cutoff',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -408,7 +426,7 @@ void main() {
   });
 
   test('illegal transitions leave booking unchanged', () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -447,7 +465,7 @@ void main() {
 
   test('guest checkout report is limited to the booking guest and active flow',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -531,7 +549,7 @@ void main() {
   });
 
   test('checkout fees require owner notes or guest photo evidence', () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -600,6 +618,10 @@ void main() {
       ownerCheckoutNote: 'Trash was left in the room after checkout.',
     );
 
+    expect(repository.bookings.single.status, BookingStatus.active);
+    expect(repository.bookings.single.checkoutChargePaymentStatus,
+        PaymentStatus.awaitingPayment);
+    await repository.confirmCheckoutChargePayment(booking.id);
     expect(repository.bookings.single.status, BookingStatus.completed);
     expect(
         repository.bookings.single.paymentSummary.status, PaymentStatus.paid);
@@ -608,7 +630,7 @@ void main() {
   });
 
   test('damage fees can use guest checkout photo evidence', () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -662,13 +684,17 @@ void main() {
       ],
     );
 
+    expect(repository.bookings.single.status, BookingStatus.active);
+    expect(repository.bookings.single.checkoutChargePaymentStatus,
+        PaymentStatus.awaitingPayment);
+    await repository.confirmCheckoutChargePayment(booking.id);
     expect(repository.bookings.single.status, BookingStatus.completed);
     expect(repository.bookings.single.paymentSummary.checkoutChargesTotal, 75);
   });
 
   test('owner can edit all listing details through repository update',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
 
     await repository.logIn('owner@crashpads.com', 'owner123');
     final owner = repository.currentUser!;
@@ -735,7 +761,7 @@ void main() {
   });
 
   test('listing edits and deletion respect live booking impact', () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -793,9 +819,9 @@ void main() {
     expect(repository.bookings.single.status, BookingStatus.cancelled);
   });
 
-  test('mock subscription and messaging workflows update in-memory state',
+  test('test-seeded subscription and messaging workflows update state',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     final crashpad = repository.crashpads.first;
 
     await repository.signUp(
@@ -831,7 +857,7 @@ void main() {
   });
 
   test('owner can manually assign confirmed or active booking', () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -872,7 +898,7 @@ void main() {
 
   test('manual assignment enforces owner permissions and room validation',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
 
@@ -923,7 +949,7 @@ void main() {
   });
 
   test('cold-bed manual assignment requires an available bed', () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.firstWhere(
       (listing) => listing.rooms.any(
@@ -975,7 +1001,7 @@ void main() {
 
   test('guest can only review after completing a confirmed paid stay',
       () async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     const paymentService = PaymentService();
     final crashpad = repository.crashpads.first;
     final initialReviewCount =
@@ -1037,6 +1063,10 @@ void main() {
     expect(reviews, hasLength(initialReviewCount + 1));
     expect(reviews.last.employeeName, guest.displayName);
   });
+}
+
+AppRepository seededRepository() {
+  return AppRepository.testSeeded(seed: MockCrashpadSeed.repositorySeed());
 }
 
 Future<void> _approveAndPay(AppRepository repository, String bookingId) async {

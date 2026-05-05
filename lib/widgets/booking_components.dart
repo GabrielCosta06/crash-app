@@ -278,9 +278,12 @@ class BookingRecordCard extends StatelessWidget {
               if (booking.paymentSummary.checkoutChargesTotal > 0)
                 StatusBadge(
                   label:
-                      '${_money.format(booking.paymentSummary.checkoutChargesTotal)} checkout',
+                      '${_money.format(booking.paymentSummary.checkoutChargesTotal)} checkout ${_checkoutChargeStatusLabel(booking.checkoutChargePaymentStatus)}',
                   icon: Icons.receipt_long_outlined,
-                  color: AppPalette.warning,
+                  color:
+                      booking.checkoutChargePaymentStatus == PaymentStatus.paid
+                          ? AppPalette.success
+                          : AppPalette.warning,
                 ),
               if (booking.hasManualAssignment)
                 StatusBadge(
@@ -343,6 +346,22 @@ class BookingRecordCard extends StatelessWidget {
       case PaymentStatus.awaitingPayment:
       case PaymentStatus.authorized:
         return AppPalette.blueSoft;
+    }
+  }
+
+  String _checkoutChargeStatusLabel(PaymentStatus status) {
+    switch (status) {
+      case PaymentStatus.awaitingPayment:
+        return 'due';
+      case PaymentStatus.paid:
+        return 'paid';
+      case PaymentStatus.failed:
+        return 'failed';
+      case PaymentStatus.refunded:
+        return 'refunded';
+      case PaymentStatus.draft:
+      case PaymentStatus.authorized:
+        return 'staged';
     }
   }
 }

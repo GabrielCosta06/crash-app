@@ -402,9 +402,12 @@ class _FindScreenState extends State<FindScreen>
                 else if (results.isEmpty)
                   EmptyStatePanel(
                     icon: Icons.search_off_outlined,
-                    title: 'No listings found',
-                    message:
-                        'Clear the search or choose a different bed model to broaden the results.',
+                    title: repository.crashpads.isEmpty
+                        ? 'No crashpads are live yet'
+                        : 'No listings found',
+                    message: repository.crashpads.isEmpty
+                        ? 'Crash App is starting with owner-created listings. New crashpads will appear here as owners publish them.'
+                        : 'Clear the search or choose a different bed model to broaden the results.',
                     action: AppSecondaryButton(
                       onPressed: () {
                         _searchController.clear();

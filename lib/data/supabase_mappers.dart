@@ -117,6 +117,9 @@ BookingRecord bookingFromRow(Map<String, dynamic> row) {
     status: bookingStatusFromName(row['status']?.toString()),
     checkoutReport: _checkoutReport(row['checkout_report']),
     ownerCheckoutNote: row['owner_checkout_note']?.toString(),
+    checkoutChargePaymentStatus: paymentStatusFromName(
+      row['checkout_charge_payment_status']?.toString(),
+    ),
     assignedRoomId: row['assigned_room_id']?.toString(),
     assignedRoomName: row['assigned_room_name']?.toString(),
     assignedBedId: row['assigned_bed_id']?.toString(),
@@ -143,6 +146,8 @@ Map<String, dynamic> bookingToRow(BookingRecord booking) => <String, dynamic>{
           ? null
           : _checkoutReportToJson(booking.checkoutReport!),
       'owner_checkout_note': booking.ownerCheckoutNote,
+      'checkout_charge_payment_status':
+          booking.checkoutChargePaymentStatus.name,
       'assigned_room_id': booking.assignedRoomId,
       'assigned_room_name': booking.assignedRoomName,
       'assigned_bed_id': booking.assignedBedId,

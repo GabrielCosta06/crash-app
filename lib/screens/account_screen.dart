@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../models/booking.dart';
+import '../models/payment.dart';
 import '../models/review.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_components.dart';
@@ -28,6 +29,7 @@ class _AccountScreenState extends State<AccountScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
   bool _isSavingProfile = false;
+  bool _isRefreshingStatus = false;
   String? _accountError;
 
   Future<void> _pickAvatar() async {
@@ -111,13 +113,29 @@ class _AccountScreenState extends State<AccountScreen> {
     navigator.pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
+  Future<void> _refreshStatus() async {
+    setState(() => _isRefreshingStatus = true);
+    try {
+      await context.read<AppRepository>().refreshAccountState();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Status refreshed.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _accountError = 'Could not refresh status: $error');
+    } finally {
+      if (mounted) setState(() => _isRefreshingStatus = false);
+    }
+  }
+
   Future<void> _cancelBooking(BookingRecord booking) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel this booking?'),
         content: Text(
-          'This will move ${booking.crashpadName} to Cancelled and notify the owner in the demo dashboard.',
+          'This will move ${booking.crashpadName} to Cancelled and notify the owner.',
         ),
         actions: <Widget>[
           TextButton(
@@ -182,12 +200,6 @@ class _AccountScreenState extends State<AccountScreen> {
                 booking,
               );
       if (!mounted) return;
-      if (checkoutUrl == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mock payment completed.')),
-        );
-        return;
-      }
       final launched = await launchUrl(
         checkoutUrl,
         mode: LaunchMode.externalApplication,
@@ -201,18 +213,33 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _payCheckoutCharges(BookingRecord booking) async {
+    try {
+      final checkoutUrl = await context
+          .read<AppRepository>()
+          .createCheckoutChargePaymentCheckout(booking);
+      if (!mounted) return;
+      final launched = await launchUrl(
+        checkoutUrl,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        setState(() => _accountError = 'Could not open Stripe Checkout.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _accountError = 'Could not start checkout charge payment. $error',
+      );
+    }
+  }
+
   Future<void> _openStripeOnboarding() async {
     try {
       final url = await context
           .read<AppRepository>()
           .createStripeConnectOnboardingLink();
       if (!mounted) return;
-      if (url == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mock owner payouts are enabled.')),
-        );
-        return;
-      }
       final launched = await launchUrl(
         url,
         mode: LaunchMode.externalApplication,
@@ -292,24 +319,19 @@ class _AccountScreenState extends State<AccountScreen> {
               ),
               if (user.isOwner) ...<Widget>[
                 const SizedBox(height: AppSpacing.lg),
-                CrashSurface(
-                  child: Row(
-                    children: <Widget>[
-                      const Icon(Icons.account_balance_outlined),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Text(
-                          'Connect Stripe to receive owner payouts after guest bookings are paid.',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: _openStripeOnboarding,
-                        icon: const Icon(Icons.open_in_new_outlined),
-                        label: const Text('Set up payouts'),
-                      ),
-                    ],
-                  ),
+                FutureBuilder<StripePayoutStatus>(
+                  future: repository.fetchStripePayoutStatus(),
+                  builder: (context, snapshot) {
+                    return _PayoutReadinessCard(
+                      status: snapshot.data ??
+                          const StripePayoutStatus.notStarted(),
+                      isLoading:
+                          snapshot.connectionState == ConnectionState.waiting,
+                      onOpenStripe: _openStripeOnboarding,
+                      onRefresh: _refreshStatus,
+                      isRefreshing: _isRefreshingStatus,
+                    );
+                  },
                 ),
               ],
               if (_accountError != null) ...<Widget>[
@@ -347,12 +369,20 @@ class _AccountScreenState extends State<AccountScreen> {
                 },
               ),
               const SizedBox(height: AppSpacing.xxxl),
+              _PaymentProcessingPanel(
+                bookings: bookings,
+                user: user,
+                onRefresh: _refreshStatus,
+                isRefreshing: _isRefreshingStatus,
+              ),
+              const SizedBox(height: AppSpacing.xxxl),
               _BookingHistorySection(
                 bookings: bookings,
                 user: user,
                 onCancelBooking: _cancelBooking,
                 onSubmitCheckoutReport: _submitCheckoutReport,
                 onPayForBooking: _payForBooking,
+                onPayCheckoutCharges: _payCheckoutCharges,
               ),
               const SizedBox(height: AppSpacing.xxxl),
               _ReviewHistorySection(reviews: reviews, user: user),
@@ -402,6 +432,197 @@ class _AccountErrorPanel extends StatelessWidget {
             icon: const Icon(Icons.close_outlined),
             tooltip: 'Dismiss account error',
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PayoutReadinessCard extends StatelessWidget {
+  const _PayoutReadinessCard({
+    required this.status,
+    required this.isLoading,
+    required this.onOpenStripe,
+    required this.onRefresh,
+    required this.isRefreshing,
+  });
+
+  final StripePayoutStatus status;
+  final bool isLoading;
+  final VoidCallback onOpenStripe;
+  final VoidCallback onRefresh;
+  final bool isRefreshing;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = status.isReady ? AppPalette.success : AppPalette.warning;
+    return CrashSurface(
+      borderColor: color.withValues(alpha: 0.34),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(
+            status.isReady
+                ? Icons.verified_outlined
+                : Icons.account_balance_outlined,
+            color: color,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      isLoading ? 'Checking payout status...' : status.label,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    if (!isLoading)
+                      StatusBadge(
+                        label: status.isReady ? 'Ready' : 'Action needed',
+                        icon: status.isReady
+                            ? Icons.check_circle_outline
+                            : Icons.info_outline,
+                        color: color,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  isLoading
+                      ? 'Reading the latest Stripe account readiness from Supabase.'
+                      : status.description,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppPalette.textMuted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: <Widget>[
+              OutlinedButton.icon(
+                onPressed: isRefreshing ? null : onRefresh,
+                icon: isRefreshing
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_outlined),
+                label: const Text('Refresh'),
+              ),
+              ElevatedButton.icon(
+                onPressed: onOpenStripe,
+                icon: const Icon(Icons.open_in_new_outlined),
+                label: Text(status.isReady ? 'Open Stripe' : 'Set up payouts'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentProcessingPanel extends StatelessWidget {
+  const _PaymentProcessingPanel({
+    required this.bookings,
+    required this.user,
+    required this.onRefresh,
+    required this.isRefreshing,
+  });
+
+  final List<BookingRecord> bookings;
+  final AppUser user;
+  final VoidCallback onRefresh;
+  final bool isRefreshing;
+
+  @override
+  Widget build(BuildContext context) {
+    final awaitingBookingPayments = bookings
+        .where((booking) => booking.status == BookingStatus.awaitingPayment)
+        .toList();
+    final checkoutFeesDue = bookings
+        .where(
+          (booking) =>
+              booking.status == BookingStatus.active &&
+              booking.checkoutChargePaymentStatus ==
+                  PaymentStatus.awaitingPayment &&
+              booking.paymentSummary.checkoutChargesTotal > 0,
+        )
+        .toList();
+
+    if (awaitingBookingPayments.isEmpty && checkoutFeesDue.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final count = awaitingBookingPayments.length + checkoutFeesDue.length;
+    return CrashSurface(
+      borderColor: AppPalette.warning.withValues(alpha: 0.36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.sync_outlined, color: AppPalette.warning),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  user.isEmployee
+                      ? '$count payment step${count == 1 ? '' : 's'} waiting'
+                      : '$count guest payment step${count == 1 ? '' : 's'} waiting',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: isRefreshing ? null : onRefresh,
+                icon: isRefreshing
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_outlined),
+                label: const Text('Refresh status'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Stripe redirects can return before the webhook updates the booking. Refresh after completing Checkout if the status has not changed yet.',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppPalette.textMuted),
+          ),
+          if (checkoutFeesDue.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              'Checkout fees due',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ...checkoutFeesDue.map(
+              (booking) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: StatusBadge(
+                  label:
+                      '${booking.crashpadName}: \$${booking.paymentSummary.checkoutChargesTotal.toStringAsFixed(0)}',
+                  icon: Icons.receipt_long_outlined,
+                  color: AppPalette.warning,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -624,17 +845,17 @@ class _AccountStatusSection extends StatelessWidget {
           _ProfileInfoRow(
             icon: Icons.workspace_premium_outlined,
             label: 'Subscription',
-            value: user.isSubscribed ? 'Premium active' : 'Free demo account',
+            value: user.isSubscribed ? 'Premium active' : 'Free account',
           ),
           const _ProfileInfoRow(
             icon: Icons.lock_outline,
             label: 'Authentication',
-            value: 'Demo in-memory auth with a Supabase-ready repository.',
+            value: 'Supabase Auth is connected for this account.',
           ),
           const _ProfileInfoRow(
             icon: Icons.payments_outlined,
             label: 'Payments',
-            value: 'Mock checkout captures payment before confirming stays.',
+            value: 'Stripe test-mode Checkout handles booking payments.',
           ),
         ],
       ),
@@ -649,6 +870,7 @@ class _BookingHistorySection extends StatelessWidget {
     required this.onCancelBooking,
     required this.onSubmitCheckoutReport,
     required this.onPayForBooking,
+    required this.onPayCheckoutCharges,
   });
 
   final List<BookingRecord> bookings;
@@ -656,6 +878,7 @@ class _BookingHistorySection extends StatelessWidget {
   final Future<void> Function(BookingRecord booking) onCancelBooking;
   final Future<void> Function(BookingRecord booking) onSubmitCheckoutReport;
   final Future<void> Function(BookingRecord booking) onPayForBooking;
+  final Future<void> Function(BookingRecord booking) onPayCheckoutCharges;
 
   @override
   Widget build(BuildContext context) {
@@ -723,6 +946,7 @@ class _BookingHistorySection extends StatelessWidget {
                       onCancelBooking: onCancelBooking,
                       onSubmitCheckoutReport: onSubmitCheckoutReport,
                       onPayForBooking: onPayForBooking,
+                      onPayCheckoutCharges: onPayCheckoutCharges,
                     ),
                     _BookingHistoryList(
                       bookings: active,
@@ -734,6 +958,7 @@ class _BookingHistorySection extends StatelessWidget {
                       onCancelBooking: onCancelBooking,
                       onSubmitCheckoutReport: onSubmitCheckoutReport,
                       onPayForBooking: onPayForBooking,
+                      onPayCheckoutCharges: onPayCheckoutCharges,
                     ),
                     _BookingHistoryList(
                       bookings: past,
@@ -744,6 +969,7 @@ class _BookingHistorySection extends StatelessWidget {
                       onCancelBooking: onCancelBooking,
                       onSubmitCheckoutReport: onSubmitCheckoutReport,
                       onPayForBooking: onPayForBooking,
+                      onPayCheckoutCharges: onPayCheckoutCharges,
                     ),
                     _BookingHistoryList(
                       bookings: cancelled,
@@ -754,6 +980,7 @@ class _BookingHistorySection extends StatelessWidget {
                       onCancelBooking: onCancelBooking,
                       onSubmitCheckoutReport: onSubmitCheckoutReport,
                       onPayForBooking: onPayForBooking,
+                      onPayCheckoutCharges: onPayCheckoutCharges,
                     ),
                   ],
                 ),
@@ -775,6 +1002,7 @@ class _BookingHistoryList extends StatelessWidget {
     required this.onCancelBooking,
     required this.onSubmitCheckoutReport,
     required this.onPayForBooking,
+    required this.onPayCheckoutCharges,
   });
 
   final List<BookingRecord> bookings;
@@ -784,6 +1012,7 @@ class _BookingHistoryList extends StatelessWidget {
   final Future<void> Function(BookingRecord booking) onCancelBooking;
   final Future<void> Function(BookingRecord booking) onSubmitCheckoutReport;
   final Future<void> Function(BookingRecord booking) onPayForBooking;
+  final Future<void> Function(BookingRecord booking) onPayCheckoutCharges;
 
   @override
   Widget build(BuildContext context) {
@@ -805,6 +1034,11 @@ class _BookingHistoryList extends StatelessWidget {
                 booking.status == BookingStatus.active);
         final canPay =
             user.isEmployee && booking.status == BookingStatus.awaitingPayment;
+        final canPayCheckoutCharges = user.isEmployee &&
+            booking.status == BookingStatus.active &&
+            booking.checkoutChargePaymentStatus ==
+                PaymentStatus.awaitingPayment &&
+            booking.paymentSummary.checkoutChargesTotal > 0;
         return BookingRecordCard(
           booking: booking,
           perspective: user.isOwner
@@ -816,23 +1050,29 @@ class _BookingHistoryList extends StatelessWidget {
                   icon: const Icon(Icons.credit_card_outlined),
                   label: const Text('Pay with Stripe'),
                 )
-              : canSubmitCheckout
+              : canPayCheckoutCharges
                   ? ElevatedButton.icon(
-                      onPressed: () => onSubmitCheckoutReport(booking),
-                      icon: const Icon(Icons.add_photo_alternate_outlined),
-                      label: Text(
-                        booking.checkoutReport == null
-                            ? 'Submit checkout report'
-                            : 'Update checkout report',
-                      ),
+                      onPressed: () => onPayCheckoutCharges(booking),
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: const Text('Pay checkout fees'),
                     )
-                  : canCancel
-                      ? OutlinedButton.icon(
-                          onPressed: () => onCancelBooking(booking),
-                          icon: const Icon(Icons.cancel_outlined),
-                          label: const Text('Cancel Booking'),
+                  : canSubmitCheckout
+                      ? ElevatedButton.icon(
+                          onPressed: () => onSubmitCheckoutReport(booking),
+                          icon: const Icon(Icons.add_photo_alternate_outlined),
+                          label: Text(
+                            booking.checkoutReport == null
+                                ? 'Submit checkout report'
+                                : 'Update checkout report',
+                          ),
                         )
-                      : null,
+                      : canCancel
+                          ? OutlinedButton.icon(
+                              onPressed: () => onCancelBooking(booking),
+                              icon: const Icon(Icons.cancel_outlined),
+                              label: const Text('Cancel Booking'),
+                            )
+                          : null,
           secondaryAction: canSubmitCheckout && canCancel
               ? OutlinedButton.icon(
                   onPressed: () => onCancelBooking(booking),

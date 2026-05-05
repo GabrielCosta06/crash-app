@@ -949,7 +949,7 @@ class _CrashpadMapPoint {
     }
     final airport = AirportData.findByCode(crashpad.nearestAirport);
     if (airport == null) return null;
-    final offset = _demoSafeOffset(crashpad.id);
+    final offset = _airportRelativeOffset(crashpad.id);
     return _CrashpadMapPoint(
       crashpad: crashpad,
       position: LatLng(
@@ -959,7 +959,7 @@ class _CrashpadMapPoint {
     );
   }
 
-  static _CoordinateOffset _demoSafeOffset(String seed) {
+  static _CoordinateOffset _airportRelativeOffset(String seed) {
     final total =
         seed.codeUnits.fold<int>(0, (sum, codeUnit) => sum + codeUnit);
     final direction = total.isEven ? 1 : -1;

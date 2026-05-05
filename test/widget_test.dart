@@ -16,10 +16,22 @@ import 'package:crash_pad/screens/checkout_screen.dart';
 import 'package:crash_pad/services/payment_service.dart';
 import 'package:crash_pad/theme/app_theme.dart';
 
+import 'fixtures/crashpad_test_seed.dart';
+
 void main() {
+  testWidgets('missing Supabase config shows fail-closed startup',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const ConfigurationErrorApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Supabase configuration required'), findsOneWidget);
+    expect(
+        find.textContaining('do not run with local mock data'), findsOneWidget);
+  });
+
   testWidgets('renders the login surface by default',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(repository: seededRepository()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -29,7 +41,7 @@ void main() {
 
   testWidgets('owner can sign in and land on management',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(repository: seededRepository()));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -52,7 +64,7 @@ void main() {
 
   testWidgets('invalid login shows inline error without leaving login',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(repository: seededRepository()));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -72,7 +84,7 @@ void main() {
 
   testWidgets('forgot password unknown account shows inline recovery error',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(repository: seededRepository()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Forgot access code?'));
@@ -94,7 +106,7 @@ void main() {
 
   testWidgets('owner workflow tiles show actionable empty states',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(repository: seededRepository()));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -125,7 +137,7 @@ void main() {
 
   testWidgets('guest can sign in and submit home search to find',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(repository: seededRepository()));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -161,7 +173,7 @@ void main() {
   // the Windows flutter_test runner used by this workspace.
   testWidgets('checkout review submits booking request without card collection',
       (WidgetTester tester) async {
-    final repository = AppRepository();
+    final repository = seededRepository();
     await repository.logIn('crew@crashpads.com', 'flysafe');
     final crashpad = repository.crashpads.first;
     final guest = repository.currentUser!;
@@ -206,4 +218,8 @@ void main() {
     expect(find.text('Booking request pending.'), findsOneWidget);
     expect(repository.bookings, hasLength(1));
   }, skip: true);
+}
+
+AppRepository seededRepository() {
+  return AppRepository.testSeeded(seed: MockCrashpadSeed.repositorySeed());
 }

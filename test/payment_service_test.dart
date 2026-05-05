@@ -43,7 +43,7 @@ void main() {
       expect(summary.ownerPayout, 1053.5);
     });
 
-    test('mock payment transitions are explicit', () {
+    test('payment state transitions are explicit', () {
       const service = PaymentService();
       const summary = PaymentSummary(
         bookingSubtotal: 100,
@@ -51,26 +51,23 @@ void main() {
         checkoutCharges: <ChargeLineItem>[],
       );
 
-      expect(service.authorizeMockPayment(summary).status,
-          PaymentStatus.authorized);
-      expect(service.captureMockPayment(summary).status, PaymentStatus.paid);
-      expect(
-          service
-              .refundMockPayment(service.authorizeMockPayment(summary))
-              .status,
+      expect(service.markAuthorized(summary).status, PaymentStatus.authorized);
+      expect(service.markPaid(summary).status, PaymentStatus.paid);
+      expect(service.markRefunded(service.markAuthorized(summary)).status,
           PaymentStatus.refunded);
       expect(
-        () => service.captureMockPayment(
+        () => service.markPaid(
           summary.copyWith(status: PaymentStatus.refunded),
         ),
         throwsA(isA<StateError>()),
       );
     });
 
-    test('assessed checkout charges recalculate final totals before capture',
+    test(
+        'assessed checkout charges recalculate final totals before paid status',
         () {
       const service = PaymentService();
-      final authorized = service.authorizeMockPayment(
+      final authorized = service.markAuthorized(
         const PaymentSummary(
           bookingSubtotal: 200,
           additionalServices: <ChargeLineItem>[
@@ -96,7 +93,7 @@ void main() {
           ),
         ],
       );
-      final paid = service.captureMockPayment(assessed);
+      final paid = service.markPaid(assessed);
 
       expect(paid.checkoutChargesTotal, 35);
       expect(paid.totalChargedToGuest, 255);

@@ -17,8 +17,8 @@ The following 15 improvements have been implemented to enhance the user experien
 5.  **Hot/Cold Bed Tooltips**: Added informational tooltips to the bed type filters to clarify the difference between rotating "Hot Beds" and assigned "Cold Beds".
 6.  **Information Hierarchy Rework**: Reordered the details page to prioritize trust signals and property descriptions over technical room breakdowns.
 7.  **Trust & Verification Layer**: Added a dedicated "Trust and Verification" section on the details page, including owner response times and security features.
-8.  **Multi-Step Checkout**: Split the checkout process into separate "Review" and "Payment" steps to reduce cognitive load and prevent accidental charges.
-9.  **Demo Payment Banner**: Added a clear informational banner during checkout to notify users that the current environment uses mock payments.
+8.  **Owner-Approval Checkout**: Guests request a stay first; owners approve it; then Stripe Checkout opens from booking history.
+9.  **Stripe Test-Mode Payments**: Booking payments, owner payouts, checkout charges, and subscriptions are routed through Supabase Edge Functions backed by Stripe test-mode keys.
 10. **Scannable Dashboard Metrics**: Improved the owner dashboard with better spacing and clearer metric cards for properties and earnings.
 11. **Skeleton Loaders**: Implemented custom skeleton loaders for the owner dashboard to improve perceived performance during data fetching.
 12. **Contextual Empty States**: Replaced generic "No data" messages with actionable empty states that guide users on how to proceed (e.g., "Add your first crashpad").
@@ -37,11 +37,15 @@ The following 15 improvements have been implemented to enhance the user experien
 
 1.  **Clone the repository**.
 2.  **Install dependencies**: `flutter pub get`
-3.  **Run the app**: `flutter run`
+3.  **Configure Supabase**: provide `SUPABASE_URL` and `SUPABASE_ANON_KEY` via dart defines.
+4.  **Run the app**: `flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`
 
-## Mock Data
+## First-User Data
 
-The app currently uses a mock repository (`AppRepository`) seeded with sample data in `lib/data/mock_crashpad_data.dart`. You can log in with:
-- **Owner**: `owner@example.com`
-- **Guest**: `crew@example.com`
-- **Password**: `password123` (any password works in mock mode)
+Crash App no longer boots with production mock data. If Supabase configuration
+is missing, startup fails closed with a configuration screen. Marketplace
+content starts with user-created owner listings; seeded crashpads exist only in
+test fixtures under `test/fixtures`.
+
+Before inviting first users, run the in-app owner **Launch checklist** or follow
+`docs/first_user_launch_checklist.md` with Stripe test-mode keys.

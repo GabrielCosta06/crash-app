@@ -15,6 +15,7 @@ import 'screens/delete_listings.dart';
 import 'screens/find_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/launch_checklist_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/owner_dashboard.dart';
 import 'screens/owner_details_screen.dart';
@@ -29,21 +30,26 @@ const Duration _navAnimationDuration = Duration(milliseconds: 260);
 /// Entry point for the Crashpad experience.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (AppConfig.isSupabaseConfigured) {
-    await Supabase.initialize(
-      url: AppConfig.supabaseUrl,
-      anonKey: AppConfig.supabaseAnonKey,
-      authOptions: const FlutterAuthClientOptions(
-        authFlowType: AuthFlowType.pkce,
-      ),
-    );
+  if (!AppConfig.isSupabaseConfigured) {
+    runApp(const ConfigurationErrorApp());
+    return;
   }
+
+  await Supabase.initialize(
+    url: AppConfig.supabaseUrl,
+    anonKey: AppConfig.supabaseAnonKey,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
+  );
   runApp(const MyApp());
 }
 
 /// Root widget responsible for wiring providers, routing and theming.
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.repository});
+
+  final AppRepository? repository;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -56,10 +62,9 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _repository = AppRepository(
-      supabaseClient:
-          AppConfig.isSupabaseConfigured ? Supabase.instance.client : null,
-    )..addListener(_handleRepositoryChanged);
+    _repository = widget.repository ??
+        AppRepository(supabaseClient: Supabase.instance.client);
+    _repository.addListener(_handleRepositoryChanged);
     unawaited(_repository.initialize());
     _isAuthenticated = _repository.isAuthenticated;
   }
@@ -86,6 +91,7 @@ class _MyAppState extends State<MyApp> {
 
   bool _isOwnerOnlyRoute(String destination) =>
       _isManagementRoute(destination) ||
+      destination == '/launch-checklist' ||
       destination == '/create_listing' ||
       destination == '/delete_listings' ||
       destination == '/edit_listing';
@@ -152,6 +158,9 @@ class _MyAppState extends State<MyApp> {
       case '/forgot-password':
         builder = (context) => const ForgotPasswordScreen();
         break;
+      case '/launch-checklist':
+        builder = (context) => const LaunchChecklistScreen();
+        break;
       case '/owner-details':
         final args = settings.arguments;
         builder = args is Crashpad
@@ -206,6 +215,42 @@ class _MyAppState extends State<MyApp> {
           themeMode: ThemeMode.dark,
           initialRoute: _isAuthenticated ? _landingRoute() : '/login',
           onGenerateRoute: _generateRoute,
+        ),
+      ),
+    );
+  }
+}
+
+class ConfigurationErrorApp extends StatelessWidget {
+  const ConfigurationErrorApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final missingKeys = AppConfig.missingSupabaseKeys.join(', ');
+    return MaterialApp(
+      title: 'Crash App Configuration Required',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.dark,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.dark,
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xxl),
+              child: EmptyStatePanel(
+                icon: Icons.settings_outlined,
+                title: 'Supabase configuration required',
+                message:
+                    'Missing $missingKeys. Set these dart defines before starting Crash App. First-user builds do not run with local mock data.',
+                action: const SelectableText(
+                  'flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppPalette.textMuted),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

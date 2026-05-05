@@ -17,13 +17,16 @@ Deno.serve(async (req) => {
   try {
     if (event.type === "checkout.session.completed") {
       const session = (event.data as Record<string, unknown>).object as Record<string, unknown>;
+      const purpose = String(
+        (session.metadata as Record<string, unknown> | undefined)?.purpose ?? "",
+      );
       const bookingId = String(
         (session.metadata as Record<string, unknown> | undefined)?.booking_id ?? "",
       );
       const paymentIntentId = session.payment_intent
         ? String(session.payment_intent)
         : null;
-      if (bookingId) {
+      if (purpose === "booking" && bookingId) {
         const { data: booking } = await admin
           .from("bookings")
           .select("payment_summary")
@@ -45,6 +48,85 @@ Deno.serve(async (req) => {
             stripe_payment_intent_id: paymentIntentId,
           })
           .eq("stripe_checkout_session_id", String(session.id));
+      }
+
+      if (purpose === "checkout_charge" && bookingId) {
+        await admin
+          .from("bookings")
+          .update({
+            status: "completed",
+            checkout_charge_payment_status: "paid",
+          })
+          .eq("id", bookingId)
+          .eq("status", "active");
+        await admin
+          .from("payment_records")
+          .update({
+            status: "paid",
+            stripe_payment_intent_id: paymentIntentId,
+          })
+          .eq("stripe_checkout_session_id", String(session.id));
+      }
+
+      if (purpose === "premium_subscription") {
+        const userId = String(
+          (session.metadata as Record<string, unknown> | undefined)?.user_id ??
+            session.client_reference_id ?? "",
+        );
+        const customerId = String(session.customer ?? "");
+        const subscriptionId = session.subscription
+          ? String(session.subscription)
+          : null;
+        if (userId && customerId) {
+          await admin.from("subscription_records").upsert({
+            user_id: userId,
+            stripe_customer_id: customerId,
+            stripe_subscription_id: subscriptionId,
+            status: "active",
+          });
+          await admin
+            .from("profiles")
+            .update({ is_subscribed: true })
+            .eq("id", userId);
+        }
+      }
+    }
+
+    if (
+      event.type === "customer.subscription.created" ||
+      event.type === "customer.subscription.updated" ||
+      event.type === "customer.subscription.deleted"
+    ) {
+      const subscription = (event.data as Record<string, unknown>).object as Record<string, unknown>;
+      const customerId = String(subscription.customer ?? "");
+      const subscriptionId = String(subscription.id ?? "");
+      const status = String(subscription.status ?? "incomplete");
+      const currentPeriodEnd = Number(subscription.current_period_end ?? 0);
+      const active = status === "active" || status === "trialing";
+      const { data: record } = await admin
+        .from("subscription_records")
+        .select("user_id")
+        .eq("stripe_customer_id", customerId)
+        .maybeSingle();
+      const userId = String(
+        record?.user_id ??
+          (subscription.metadata as Record<string, unknown> | undefined)?.user_id ??
+          "",
+      );
+      if (userId && customerId) {
+        await admin.from("subscription_records").upsert({
+          user_id: userId,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          status,
+          current_period_end: currentPeriodEnd > 0
+            ? new Date(currentPeriodEnd * 1000).toISOString()
+            : null,
+        });
+        await admin
+          .from("profiles")
+          .update({ is_subscribed: active })
+          .eq("id", userId);
       }
     }
 

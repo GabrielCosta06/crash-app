@@ -56,6 +56,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     if (mounted) await _refresh();
   }
 
+  Future<void> _openLaunchChecklist() async {
+    await Navigator.pushNamed(context, '/launch-checklist');
+  }
+
   List<BookingRecord> _ownerBookingsForCurrentUser() {
     final repository = context.read<AppRepository>();
     final user = repository.currentUser;
@@ -108,7 +112,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         availableCharges: listing?.checkoutCharges ?? const [],
         title: 'Assess checkout charges',
         intro:
-            'Review checkout evidence for ${booking.guestName}, select any charges to stage, then save them for final capture at completion.',
+            'Review checkout evidence for ${booking.guestName}, select any charges, then send them to the guest for Stripe Checkout payment.',
         actionLabel: 'Save charges',
       ),
     );
@@ -202,7 +206,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           availableCharges: listing?.checkoutCharges ?? const [],
           title: 'Complete stay',
           intro:
-              'Review checkout evidence for ${booking.guestName}, assess final charges, then capture the final payment.',
+              'Review checkout evidence for ${booking.guestName}. If you add charges, the guest must pay them in Stripe before the stay is completed.',
           actionLabel: 'Complete Stay',
         ),
       );
@@ -264,7 +268,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       final resultLabel = status == BookingStatus.confirmed &&
               booking.status == BookingStatus.pending
           ? BookingStatus.awaitingPayment.label
-          : status.label;
+          : status == BookingStatus.completed && checkoutCharges.isNotEmpty
+              ? 'Awaiting checkout fee payment'
+              : status.label;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Stay moved to $resultLabel.')));
@@ -426,6 +432,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         onDeleteListings: _openDeleteListings,
                         onCheckoutCharges: _openCheckoutCharges,
                         onManualAssignment: _openManualAssignment,
+                        onLaunchChecklist: _openLaunchChecklist,
                       ),
                     ],
                   ),
@@ -1137,7 +1144,7 @@ class _Metrics extends StatelessWidget {
       final summary = paymentService.buildSummary(
         BookingDraft(
           crashpadId: listing.id,
-          guestId: 'mock-dashboard',
+          guestId: 'owner-dashboard-preview',
           nightlyRate: listing.price,
           checkInDate: checkIn,
           checkOutDate: checkOut,
@@ -1301,7 +1308,7 @@ class _PayoutPanel extends StatelessWidget {
             return paymentService.buildSummary(
               BookingDraft(
                 crashpadId: primary.id,
-                guestId: 'mock-owner-preview',
+                guestId: 'owner-payout-preview',
                 nightlyRate: primary.price,
                 checkInDate: checkIn,
                 checkOutDate: checkOut,
@@ -1338,7 +1345,7 @@ class _PayoutPanel extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Calculated from the current nightly rate, each listing minimum stay, and centralized ${(AppConfig.platformFeeRate * 100).toStringAsFixed(0)}% Crash App fee. Payment capture remains mocked until Stripe is connected.',
+                'Calculated from the current nightly rate, each listing minimum stay, and centralized ${(AppConfig.platformFeeRate * 100).toStringAsFixed(0)}% Crash App fee. Stripe Checkout handles guest payments before payouts are finalized.',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: AppPalette.textMuted),
@@ -1589,6 +1596,7 @@ class _WorkflowPanel extends StatelessWidget {
     required this.onDeleteListings,
     required this.onCheckoutCharges,
     required this.onManualAssignment,
+    required this.onLaunchChecklist,
   });
 
   final List<Crashpad> listings;
@@ -1596,6 +1604,7 @@ class _WorkflowPanel extends StatelessWidget {
   final VoidCallback onDeleteListings;
   final VoidCallback onCheckoutCharges;
   final VoidCallback onManualAssignment;
+  final VoidCallback onLaunchChecklist;
 
   @override
   Widget build(BuildContext context) {
@@ -1605,7 +1614,7 @@ class _WorkflowPanel extends StatelessWidget {
         const SectionHeading(
           title: 'Operational workflows',
           subtitle:
-              'Management actions preserved as demo flows and ready for Supabase repositories.',
+              'Manage real listings, stays, assignments, and Stripe-backed charges.',
         ),
         const SizedBox(height: AppSpacing.lg),
         Wrap(
@@ -1639,6 +1648,13 @@ class _WorkflowPanel extends StatelessWidget {
               description:
                   'Remove outdated listings from the management inventory.',
               onTap: onDeleteListings,
+            ),
+            _WorkflowAction(
+              icon: Icons.fact_check_outlined,
+              title: 'Launch checklist',
+              description:
+                  'Walk through first-user QA for listings, Stripe, subscriptions, and checkout fees.',
+              onTap: onLaunchChecklist,
             ),
           ],
         ),

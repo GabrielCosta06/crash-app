@@ -1,9 +1,9 @@
 import 'dart:convert';
 
-/// Supported user roles within the demo app.
+/// Supported user roles within Crash App.
 enum AppUserType { owner, employee }
 
-/// Represents an authenticated user profile stored in memory.
+/// Represents an authenticated user profile.
 class AppUser {
   AppUser({
     required this.id,

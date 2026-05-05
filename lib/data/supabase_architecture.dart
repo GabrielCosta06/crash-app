@@ -2,11 +2,10 @@ import '../models/app_user.dart';
 import '../models/crashpad.dart';
 import '../models/review.dart';
 
-/// Supabase-ready contract for replacing the current in-memory demo auth.
+/// Contract for Supabase-backed authentication.
 ///
-/// The project does not currently include `supabase_flutter`, so this contract
-/// intentionally avoids importing Supabase classes. A future adapter can map
-/// Supabase Auth sessions into [AppUser] without changing UI widgets.
+/// The app repository now uses `supabase_flutter` directly, but this boundary
+/// remains useful for future adapter-based tests or service extraction.
 abstract class AuthGateway {
   Future<AppUser> signIn({
     required String email,
@@ -24,7 +23,7 @@ abstract class AuthGateway {
   Future<void> signOut();
 }
 
-/// Supabase-ready data access boundary for marketplace and owner workflows.
+/// Data access boundary for marketplace and owner workflows.
 abstract class CrashpadGateway {
   Future<List<Crashpad>> fetchCrashpads();
 

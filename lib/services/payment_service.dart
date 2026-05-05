@@ -12,7 +12,7 @@ class PaymentService {
     );
   }
 
-  PaymentSummary authorizeMockPayment(PaymentSummary summary) {
+  PaymentSummary markAuthorized(PaymentSummary summary) {
     return summary.copyWith(status: PaymentStatus.authorized);
   }
 
@@ -20,15 +20,15 @@ class PaymentService {
     return summary.copyWith(status: PaymentStatus.awaitingPayment);
   }
 
-  PaymentSummary captureMockPayment(PaymentSummary summary) {
+  PaymentSummary markPaid(PaymentSummary summary) {
     if (summary.status == PaymentStatus.failed ||
         summary.status == PaymentStatus.refunded) {
-      throw StateError('Only active payment authorizations can be captured.');
+      throw StateError('Only active payment states can be marked paid.');
     }
     return summary.copyWith(status: PaymentStatus.paid);
   }
 
-  PaymentSummary refundMockPayment(PaymentSummary summary) {
+  PaymentSummary markRefunded(PaymentSummary summary) {
     if (summary.status == PaymentStatus.paid ||
         summary.status == PaymentStatus.awaitingPayment ||
         summary.status == PaymentStatus.authorized) {

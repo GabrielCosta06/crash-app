@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       }),
     });
 
-    await admin.from("payment_records").insert({
+    await admin.from("payment_records").upsert({
       booking_id: bookingId,
       payer_id: booking.guest_id,
       owner_id: listing.owner_id,
@@ -84,7 +84,12 @@ Deno.serve(async (req) => {
       owner_payout_cents: amountCents - feeCents,
       status: "awaitingPayment",
       purpose: "checkout_charge",
-    });
+    }, { onConflict: "stripe_checkout_session_id" });
+
+    await admin
+      .from("bookings")
+      .update({ checkout_charge_payment_status: "awaitingPayment" })
+      .eq("id", bookingId);
 
     return jsonResponse({ url: session.url, sessionId: session.id });
   } catch (error) {

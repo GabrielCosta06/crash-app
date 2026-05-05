@@ -1,12 +1,28 @@
 import 'package:uuid/uuid.dart';
 
-import '../models/app_user.dart';
-import '../models/crashpad.dart';
-import '../models/payment.dart';
-import '../models/review.dart';
+import 'package:crash_pad/data/app_repository.dart';
+import 'package:crash_pad/models/app_user.dart';
+import 'package:crash_pad/models/crashpad.dart';
+import 'package:crash_pad/models/payment.dart';
+import 'package:crash_pad/models/review.dart';
 
 class MockCrashpadSeed {
   const MockCrashpadSeed._();
+
+  static AppRepositorySeed repositorySeed() {
+    final uuid = const Uuid();
+    final seededUsers = users(uuid);
+    final owner = seededUsers.firstWhere((user) => user.isOwner);
+    final seededCrashpads = crashpads(
+      uuid,
+      Owner(name: owner.displayName, contact: owner.email),
+    );
+    return AppRepositorySeed(
+      users: seededUsers,
+      crashpads: seededCrashpads,
+      reviewsByCrashpad: reviewsByCrashpad(seededCrashpads),
+    );
+  }
 
   /// Demo-only credentials preserved from the original app so current login
   /// screens still work. TODO: replace with Supabase Auth users before launch.

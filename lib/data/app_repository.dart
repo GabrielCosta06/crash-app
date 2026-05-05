@@ -14,21 +14,21 @@ import '../models/review.dart';
 import '../models/message_thread.dart';
 import '../services/availability_service.dart';
 import '../services/payment_service.dart';
-import 'mock_crashpad_data.dart';
 import 'supabase_mappers.dart';
 
 /// Repository facade used by the UI.
 ///
-/// Without Supabase credentials it keeps the existing in-memory demo mode.
-/// With a Supabase client it persists MVP auth, listings, bookings, reviews,
-/// messages, and Stripe Checkout orchestration through Supabase tables/functions.
+/// Production callers must provide a Supabase client so first-user data is
+/// always persisted. Tests can use [AppRepository.testSeeded] with fixtures.
 class AppRepository extends ChangeNotifier {
-  AppRepository({SupabaseClient? supabaseClient}) : _supabase = supabaseClient {
-    if (_usesSupabase) {
-      _hydrateSupabaseSessionUser();
-    } else {
-      _seedData();
-    }
+  AppRepository({required SupabaseClient supabaseClient})
+      : _supabase = supabaseClient {
+    _hydrateSupabaseSessionUser();
+  }
+
+  AppRepository.testSeeded({required AppRepositorySeed seed})
+      : _supabase = null {
+    _seedData(seed);
   }
 
   final Uuid _uuid = const Uuid();
@@ -80,6 +80,18 @@ class AppRepository extends ChangeNotifier {
       _currentUser = null;
       notifyListeners();
     }
+  }
+
+  Future<void> refreshAccountState() async {
+    if (!_usesSupabase) return;
+    final authUser = _client.auth.currentUser;
+    if (authUser == null) return;
+    _currentUser = await _fetchProfile(authUser.id);
+    await Future.wait(<Future<void>>[
+      _refreshBookings(),
+      _refreshMessageThreads(),
+    ]);
+    notifyListeners();
   }
 
   void _hydrateSupabaseSessionUser() {
@@ -682,6 +694,8 @@ class AppRepository extends ChangeNotifier {
         booking.paymentSummary,
         charges,
       ),
+      checkoutChargePaymentStatus:
+          charges.isEmpty ? PaymentStatus.draft : PaymentStatus.awaitingPayment,
     );
     await _persistBooking(_bookings[index]);
     notifyListeners();
@@ -810,10 +824,22 @@ class AppRepository extends ChangeNotifier {
       booking.paymentSummary,
       checkoutCharges,
     );
-    final paid = _paymentService.captureMockPayment(assessed);
+    if (checkoutCharges.isNotEmpty) {
+      _bookings[index] = booking.copyWith(
+        paymentSummary: assessed,
+        checkoutChargePaymentStatus: PaymentStatus.awaitingPayment,
+        ownerCheckoutNote:
+            ownerCheckoutNote.trim().isEmpty ? null : ownerCheckoutNote.trim(),
+      );
+      await _persistBooking(_bookings[index]);
+      notifyListeners();
+      return;
+    }
+    final paid = _paymentService.markPaid(assessed);
     _bookings[index] = booking.copyWith(
       status: BookingStatus.completed,
       paymentSummary: paid,
+      checkoutChargePaymentStatus: PaymentStatus.draft,
       ownerCheckoutNote:
           ownerCheckoutNote.trim().isEmpty ? null : ownerCheckoutNote.trim(),
     );
@@ -1221,7 +1247,7 @@ class AppRepository extends ChangeNotifier {
   BookingRecord _cancelledBooking(BookingRecord booking) {
     return booking.copyWith(
       status: BookingStatus.cancelled,
-      paymentSummary: _paymentService.refundMockPayment(booking.paymentSummary),
+      paymentSummary: _paymentService.markRefunded(booking.paymentSummary),
     );
   }
 
@@ -1411,9 +1437,8 @@ class AppRepository extends ChangeNotifier {
     return total / reviews.length;
   }
 
-  Future<Uri?> createStripeConnectOnboardingLink() async {
+  Future<Uri> createStripeConnectOnboardingLink() async {
     final owner = _requireOwner();
-    if (!_usesSupabase) return null;
     final response = await _client.functions.invoke(
       AppConfig.stripeConnectFunction,
       body: <String, dynamic>{
@@ -1431,25 +1456,13 @@ class AppRepository extends ChangeNotifier {
     return Uri.parse(url);
   }
 
-  Future<Uri?> createBookingPaymentCheckout(BookingRecord booking) async {
+  Future<Uri> createBookingPaymentCheckout(BookingRecord booking) async {
     final guest = _currentUser;
     if (guest == null || !guest.isEmployee) {
       throw AuthException('Only the booking guest can pay for this stay.');
     }
     if (booking.status != BookingStatus.awaitingPayment) {
       throw StateError('This booking is not ready for payment.');
-    }
-    if (!_usesSupabase) {
-      final index = _bookingIndex(booking.id);
-      final updated = booking.copyWith(
-        status: BookingStatus.confirmed,
-        paymentSummary: _paymentService.captureMockPayment(
-          booking.paymentSummary,
-        ),
-      );
-      _bookings[index] = updated;
-      notifyListeners();
-      return null;
     }
     final response = await _client.functions.invoke(
       AppConfig.stripeBookingCheckoutFunction,
@@ -1467,6 +1480,110 @@ class AppRepository extends ChangeNotifier {
     return Uri.parse(url);
   }
 
+  Future<Uri> createCheckoutChargePaymentCheckout(BookingRecord booking) async {
+    final guest = _currentUser;
+    if (guest == null || !guest.isEmployee) {
+      throw AuthException('Only the booking guest can pay checkout charges.');
+    }
+    if (booking.status != BookingStatus.active) {
+      throw StateError(
+          'Checkout charges are only payable during active stays.');
+    }
+    if (booking.paymentSummary.checkoutChargesTotal <= 0) {
+      throw StateError('No checkout charges are due.');
+    }
+    final response = await _client.functions.invoke(
+      AppConfig.stripeCheckoutChargeFunction,
+      body: <String, dynamic>{
+        'bookingId': booking.id,
+        'successUrl': '${AppConfig.productionOrigin}/account',
+        'cancelUrl': '${AppConfig.productionOrigin}/account',
+      },
+    );
+    final data = _functionData(response.data);
+    final url = data['url']?.toString();
+    if (url == null || url.isEmpty) {
+      throw StateError('Stripe did not return a checkout URL.');
+    }
+    return Uri.parse(url);
+  }
+
+  Future<Uri> createSubscriptionCheckout() async {
+    final current = _currentUser;
+    if (current == null) {
+      throw AuthException('You must be logged in to subscribe.');
+    }
+    final response = await _client.functions.invoke(
+      AppConfig.stripeSubscriptionCheckoutFunction,
+      body: <String, dynamic>{
+        'successUrl': '${AppConfig.productionOrigin}/account',
+        'cancelUrl': '${AppConfig.productionOrigin}/subscribe',
+      },
+    );
+    final data = _functionData(response.data);
+    final url = data['url']?.toString();
+    if (url == null || url.isEmpty) {
+      throw StateError('Stripe did not return a subscription URL.');
+    }
+    return Uri.parse(url);
+  }
+
+  Future<Uri> createBillingPortalSession() async {
+    final current = _currentUser;
+    if (current == null) {
+      throw AuthException('You must be logged in to manage billing.');
+    }
+    final response = await _client.functions.invoke(
+      AppConfig.stripeBillingPortalFunction,
+      body: <String, dynamic>{
+        'returnUrl': '${AppConfig.productionOrigin}/account',
+      },
+    );
+    final data = _functionData(response.data);
+    final url = data['url']?.toString();
+    if (url == null || url.isEmpty) {
+      throw StateError('Stripe did not return a billing portal URL.');
+    }
+    return Uri.parse(url);
+  }
+
+  Future<StripePayoutStatus> fetchStripePayoutStatus() async {
+    final owner = _requireOwner();
+    if (!_usesSupabase) return const StripePayoutStatus.notStarted();
+    final row = await _client
+        .from('stripe_accounts')
+        .select()
+        .eq('owner_id', owner.id)
+        .maybeSingle();
+    if (row == null) return const StripePayoutStatus.notStarted();
+    return StripePayoutStatus.fromRow(row);
+  }
+
+  Future<SubscriptionStatus> fetchSubscriptionStatus() async {
+    final current = _currentUser;
+    if (current == null) {
+      throw AuthException('You must be logged in to view billing.');
+    }
+    if (!_usesSupabase) {
+      return SubscriptionStatus(
+        status: current.isSubscribed ? 'active' : 'none',
+        isActive: current.isSubscribed,
+      );
+    }
+    final row = await _client
+        .from('subscription_records')
+        .select()
+        .eq('user_id', current.id)
+        .maybeSingle();
+    if (row == null) {
+      return SubscriptionStatus(
+        status: current.isSubscribed ? 'active' : 'none',
+        isActive: current.isSubscribed,
+      );
+    }
+    return SubscriptionStatus.fromRow(row, current.isSubscribed);
+  }
+
   Future<void> confirmBookingPayment(String bookingId) async {
     final index = _bookingIndex(bookingId);
     final booking = _bookings[index];
@@ -1475,9 +1592,30 @@ class AppRepository extends ChangeNotifier {
     }
     final updated = booking.copyWith(
       status: BookingStatus.confirmed,
-      paymentSummary: _paymentService.captureMockPayment(
+      paymentSummary: _paymentService.markPaid(
         booking.paymentSummary,
       ),
+    );
+    _bookings[index] = updated;
+    await _persistBooking(updated);
+    notifyListeners();
+  }
+
+  Future<void> confirmCheckoutChargePayment(String bookingId) async {
+    final index = _bookingIndex(bookingId);
+    final booking = _bookings[index];
+    if (booking.status != BookingStatus.active) {
+      throw StateError('This booking is not active.');
+    }
+    if (booking.paymentSummary.checkoutChargesTotal <= 0) {
+      throw StateError('No checkout charges are due.');
+    }
+    if (booking.checkoutChargePaymentStatus != PaymentStatus.awaitingPayment) {
+      throw StateError('Checkout charges are not awaiting payment.');
+    }
+    final updated = booking.copyWith(
+      status: BookingStatus.completed,
+      checkoutChargePaymentStatus: PaymentStatus.paid,
     );
     _bookings[index] = updated;
     await _persistBooking(updated);
@@ -1583,32 +1721,36 @@ class AppRepository extends ChangeNotifier {
         .eq('id', booking.id);
   }
 
-  void _seedData() {
-    final users = MockCrashpadSeed.users(_uuid);
-    final owner = users.firstWhere((user) => user.isOwner);
-
+  void _seedData(AppRepositorySeed seed) {
     _users
       ..clear()
-      ..addAll(users);
+      ..addAll(seed.users);
 
     _currentUser = null;
 
     _crashpads
       ..clear()
-      ..addAll(
-        MockCrashpadSeed.crashpads(
-          _uuid,
-          Owner(name: owner.displayName, contact: owner.email),
-        ),
-      );
+      ..addAll(seed.crashpads);
 
     _reviewsByCrashpad
       ..clear()
-      ..addAll(MockCrashpadSeed.reviewsByCrashpad(_crashpads));
+      ..addAll(seed.reviewsByCrashpad);
 
     _bookings.clear();
     _messageThreads.clear();
   }
+}
+
+class AppRepositorySeed {
+  const AppRepositorySeed({
+    required this.users,
+    required this.crashpads,
+    this.reviewsByCrashpad = const <String, List<Review>>{},
+  });
+
+  final List<AppUser> users;
+  final List<Crashpad> crashpads;
+  final Map<String, List<Review>> reviewsByCrashpad;
 }
 
 class AuthException implements Exception {
@@ -1641,4 +1783,118 @@ class ListingDeletionImpact {
   int get historyBookingCount => completedCount + cancelledCount;
 
   bool get canDelete => liveBookingCount == 0;
+}
+
+class StripePayoutStatus {
+  const StripePayoutStatus({
+    required this.status,
+    required this.chargesEnabled,
+    required this.payoutsEnabled,
+    this.onboardingCompletedAt,
+  });
+
+  const StripePayoutStatus.notStarted()
+      : status = 'not_started',
+        chargesEnabled = false,
+        payoutsEnabled = false,
+        onboardingCompletedAt = null;
+
+  factory StripePayoutStatus.fromRow(Map<String, dynamic> row) {
+    return StripePayoutStatus(
+      status: row['status']?.toString() ?? 'not_started',
+      chargesEnabled: row['charges_enabled'] == true,
+      payoutsEnabled: row['payouts_enabled'] == true,
+      onboardingCompletedAt: DateTime.tryParse(
+        row['onboarding_completed_at']?.toString() ?? '',
+      ),
+    );
+  }
+
+  final String status;
+  final bool chargesEnabled;
+  final bool payoutsEnabled;
+  final DateTime? onboardingCompletedAt;
+
+  bool get isReady => chargesEnabled && payoutsEnabled;
+
+  String get label {
+    if (isReady) return 'Ready for payouts';
+    switch (status) {
+      case 'onboarding':
+        return 'Onboarding incomplete';
+      case 'restricted':
+        return 'Payouts restricted';
+      case 'enabled':
+        return 'Ready for payouts';
+      default:
+        return 'Not connected';
+    }
+  }
+
+  String get description {
+    if (isReady) {
+      return 'Stripe can route guest payments and owner payouts for approved stays.';
+    }
+    switch (status) {
+      case 'onboarding':
+        return 'Finish Stripe onboarding before guests can complete payment for your listings.';
+      case 'restricted':
+        return 'Stripe needs more information before charges or payouts are enabled.';
+      default:
+        return 'Connect Stripe to receive payouts after guest bookings are paid.';
+    }
+  }
+}
+
+class SubscriptionStatus {
+  const SubscriptionStatus({
+    required this.status,
+    required this.isActive,
+    this.currentPeriodEnd,
+  });
+
+  factory SubscriptionStatus.fromRow(
+    Map<String, dynamic> row,
+    bool profileIsSubscribed,
+  ) {
+    final status = row['status']?.toString() ?? 'none';
+    return SubscriptionStatus(
+      status: status,
+      isActive:
+          profileIsSubscribed || status == 'active' || status == 'trialing',
+      currentPeriodEnd: DateTime.tryParse(
+        row['current_period_end']?.toString() ?? '',
+      ),
+    );
+  }
+
+  final String status;
+  final bool isActive;
+  final DateTime? currentPeriodEnd;
+
+  String get label {
+    if (isActive) {
+      return status == 'trialing' ? 'Trial active' : 'Premium active';
+    }
+    switch (status) {
+      case 'past_due':
+        return 'Payment needs attention';
+      case 'canceled':
+        return 'Subscription canceled';
+      case 'incomplete':
+        return 'Checkout not completed';
+      default:
+        return 'Premium inactive';
+    }
+  }
+
+  String get description {
+    if (isActive) {
+      return 'Premium access is active from Stripe subscription status.';
+    }
+    if (status == 'past_due') {
+      return 'Open billing to update payment details or resolve the invoice.';
+    }
+    return 'Start Stripe Checkout to activate premium access.';
+  }
 }
