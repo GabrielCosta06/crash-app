@@ -36,7 +36,6 @@ create table public.profiles (
   company text,
   badge_number text,
   avatar_base64 text,
-  is_subscribed boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -120,16 +119,6 @@ create table public.stripe_accounts (
   updated_at timestamptz not null default now()
 );
 
-create table public.subscription_records (
-  user_id uuid primary key references public.profiles(id) on delete cascade,
-  stripe_customer_id text not null unique,
-  stripe_subscription_id text unique,
-  status text not null default 'incomplete',
-  current_period_end timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
 create table public.reviews (
   id uuid primary key default gen_random_uuid(),
   crashpad_id uuid not null references public.listings(id) on delete cascade,
@@ -201,10 +190,6 @@ create trigger stripe_accounts_touch_updated_at
 before update on public.stripe_accounts
 for each row execute function public.touch_updated_at();
 
-create trigger subscription_records_touch_updated_at
-before update on public.subscription_records
-for each row execute function public.touch_updated_at();
-
 create or replace function public.handle_new_auth_user()
 returns trigger
 language plpgsql
@@ -248,7 +233,6 @@ alter table public.listings enable row level security;
 alter table public.bookings enable row level security;
 alter table public.payment_records enable row level security;
 alter table public.stripe_accounts enable row level security;
-alter table public.subscription_records enable row level security;
 alter table public.reviews enable row level security;
 alter table public.message_threads enable row level security;
 alter table public.messages enable row level security;
@@ -330,10 +314,6 @@ using (payer_id = auth.uid() or owner_id = auth.uid());
 create policy "stripe_accounts_owner_read"
 on public.stripe_accounts for select
 using (owner_id = auth.uid());
-
-create policy "subscription_records_owner_read"
-on public.subscription_records for select
-using (user_id = auth.uid());
 
 create policy "reviews_public_read"
 on public.reviews for select

@@ -23,7 +23,6 @@ AppUser appUserFromProfile(Map<String, dynamic> row) {
     company: row['company']?.toString(),
     badgeNumber: row['badge_number']?.toString(),
     avatarBase64: row['avatar_base64']?.toString(),
-    isSubscribed: row['is_subscribed'] == true,
   );
 }
 
@@ -38,7 +37,6 @@ Map<String, dynamic> profileToRow(AppUser user) => <String, dynamic>{
       'company': user.company,
       'badge_number': user.badgeNumber,
       'avatar_base64': user.avatarBase64,
-      'is_subscribed': user.isSubscribed,
     };
 
 Crashpad crashpadFromRow(Map<String, dynamic> row) {

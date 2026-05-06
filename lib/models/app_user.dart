@@ -17,7 +17,6 @@ class AppUser {
     this.company,
     this.badgeNumber,
     this.avatarBase64,
-    this.isSubscribed = false,
   });
 
   final String id;
@@ -31,7 +30,6 @@ class AppUser {
   final String? company;
   final String? badgeNumber;
   final String? avatarBase64;
-  bool isSubscribed;
 
   /// Returns the display name used throughout the UI.
   String get displayName => '$firstName $lastName';
@@ -53,7 +51,6 @@ class AppUser {
     DateTime? dateOfBirth,
     String? company,
     String? badgeNumber,
-    bool? isSubscribed,
     String? avatarBase64,
   }) {
     return AppUser(
@@ -68,7 +65,6 @@ class AppUser {
       company: company ?? this.company,
       badgeNumber: badgeNumber ?? this.badgeNumber,
       avatarBase64: avatarBase64 ?? this.avatarBase64,
-      isSubscribed: isSubscribed ?? this.isSubscribed,
     );
   }
 
@@ -83,7 +79,6 @@ class AppUser {
         'company': company,
         'badgeNumber': badgeNumber,
         'avatarBase64': avatarBase64,
-        'isSubscribed': isSubscribed,
       };
 
   String toJson() => jsonEncode(toMap());

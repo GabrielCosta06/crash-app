@@ -22,6 +22,8 @@ RUN flutter build web --release \
     --dart-define=SUPABASE_URL=${SUPABASE_URL} \
     --dart-define=SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
 
+RUN CACHE_BUST=$(date +%s) && \
+    sed -i "s/main.dart.js/main.dart.js?v=${CACHE_BUST}/g" build/web/flutter_bootstrap.js
 
 # === Stage 2: Serve the built app using Nginx ===
 FROM nginx:alpine
@@ -46,8 +48,50 @@ server {
     gzip on;
     gzip_types text/plain text/css text/javascript application/javascript application/json;
     
-    # Cache control
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+    # Flutter app shell and boot files must revalidate so users do not keep
+    # running an old main.dart.js after a deploy.
+    location = / {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files /index.html =404;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files /index.html =404;
+    }
+
+    location = /flutter_bootstrap.js {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files /flutter_bootstrap.js =404;
+    }
+
+    location = /main.dart.js {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files /main.dart.js =404;
+    }
+
+    location = /flutter.js {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files /flutter.js =404;
+    }
+
+    location = /flutter_service_worker.js {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files /flutter_service_worker.js =404;
+    }
+
+    location = /manifest.json {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files /manifest.json =404;
+    }
+
+    location = /version.json {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files /version.json =404;
+    }
+
+    # Static media and font assets are safe to cache aggressively.
+    location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|wasm)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }

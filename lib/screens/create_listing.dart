@@ -287,13 +287,19 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       );
       return;
     }
+    if (_imageUrls.isEmpty) {
+      setState(
+        () => _formError =
+            'Upload at least one real listing photo before publishing.',
+      );
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
       _formError = null;
     });
     try {
-      final imageUrls = _imageUrls.isEmpty ? _placeholderImages : _imageUrls;
       final amenities = _contentService.normalizeSelection(_selectedAmenities);
       final houseRules = _contentService.normalizeSelection(_selectedRules);
       final services = _services
@@ -316,7 +322,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             nearestAirport: _nearestAirportController.text.trim().toUpperCase(),
             bedType: _resolveOverallBedType(rooms),
             price: double.parse(_priceController.text.trim()),
-            imageUrls: imageUrls,
+            imageUrls: _imageUrls,
             rooms: rooms,
             amenities: amenities,
             houseRules: houseRules,
@@ -335,7 +341,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           nearestAirport: _nearestAirportController.text.trim().toUpperCase(),
           bedType: _resolveOverallBedType(rooms),
           price: double.parse(_priceController.text.trim()),
-          imageUrls: imageUrls,
+          imageUrls: _imageUrls,
           rooms: rooms,
           amenities: amenities,
           houseRules: houseRules,
@@ -1448,7 +1454,7 @@ class _GallerySection extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Upload up to 6 images. If none are uploaded, development placeholder photos are used.',
+            'Upload up to 6 real listing photos. At least one photo is required before publishing.',
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
@@ -2049,8 +2055,3 @@ String _formatNumber(double value) {
   }
   return value.toStringAsFixed(2);
 }
-
-const List<String> _placeholderImages = <String>[
-  'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1200&q=80',
-  'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80',
-];

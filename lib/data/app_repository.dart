@@ -233,11 +233,17 @@ class AppRepository extends ChangeNotifier {
           company: company,
           badgeNumber: badgeNumber,
         );
-        await _client.from('profiles').upsert(profileToRow(newUser));
-        _currentUser = newUser;
+        if (response.session == null && _client.auth.currentSession == null) {
+          throw AuthException(
+            'Account created. Check your email to confirm it, then sign in.',
+          );
+        }
+        _currentUser = await _fetchProfileAfterSignup(authUser.id, newUser);
         await _refreshCrashpads();
         notifyListeners();
         return;
+      } on AuthException {
+        rethrow;
       } catch (error) {
         throw AuthException('Could not create account: $error');
       }
@@ -368,6 +374,9 @@ class AppRepository extends ChangeNotifier {
     }
     if (rooms.isEmpty) {
       throw ArgumentError('At least one room is required.');
+    }
+    if (imageUrls.isEmpty) {
+      throw ArgumentError('At least one listing photo is required.');
     }
     if (_usesSupabase) {
       final newCrashpad = Crashpad(
@@ -508,6 +517,9 @@ class AppRepository extends ChangeNotifier {
     final existing = _crashpads[index];
     if (existing.owner.contact?.toLowerCase() != owner.email.toLowerCase()) {
       throw AuthException('You can only edit listings you own.');
+    }
+    if (updatedCrashpad.imageUrls.isEmpty) {
+      throw ArgumentError('At least one listing photo is required.');
     }
     canEditListingWithoutConflicts(updatedCrashpad);
     if (_usesSupabase) {
@@ -1339,28 +1351,6 @@ class AppRepository extends ChangeNotifier {
     return List.unmodifiable(records);
   }
 
-  /// Marks the active user as subscribed to premium features.
-  Future<void> subscribeCurrentUser() async {
-    final current = _currentUser;
-    if (current == null) {
-      throw AuthException('You must be logged in to subscribe.');
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    final index = _users.indexWhere((user) => user.id == current.id);
-    final updated = current.copyWith(isSubscribed: true);
-    if (index != -1) {
-      _users[index] = updated;
-    }
-    if (identical(_currentUser, current)) {
-      _currentUser = updated;
-    }
-    if (_usesSupabase) {
-      await _client.from('profiles').update(
-          <String, dynamic>{'is_subscribed': true}).eq('id', current.id);
-    }
-    notifyListeners();
-  }
-
   /// Updates the avatar for the authenticated user.
   Future<void> updateProfileAvatar(String base64Image) async {
     final current = _currentUser;
@@ -1508,45 +1498,6 @@ class AppRepository extends ChangeNotifier {
     return Uri.parse(url);
   }
 
-  Future<Uri> createSubscriptionCheckout() async {
-    final current = _currentUser;
-    if (current == null) {
-      throw AuthException('You must be logged in to subscribe.');
-    }
-    final response = await _client.functions.invoke(
-      AppConfig.stripeSubscriptionCheckoutFunction,
-      body: <String, dynamic>{
-        'successUrl': '${AppConfig.productionOrigin}/account',
-        'cancelUrl': '${AppConfig.productionOrigin}/subscribe',
-      },
-    );
-    final data = _functionData(response.data);
-    final url = data['url']?.toString();
-    if (url == null || url.isEmpty) {
-      throw StateError('Stripe did not return a subscription URL.');
-    }
-    return Uri.parse(url);
-  }
-
-  Future<Uri> createBillingPortalSession() async {
-    final current = _currentUser;
-    if (current == null) {
-      throw AuthException('You must be logged in to manage billing.');
-    }
-    final response = await _client.functions.invoke(
-      AppConfig.stripeBillingPortalFunction,
-      body: <String, dynamic>{
-        'returnUrl': '${AppConfig.productionOrigin}/account',
-      },
-    );
-    final data = _functionData(response.data);
-    final url = data['url']?.toString();
-    if (url == null || url.isEmpty) {
-      throw StateError('Stripe did not return a billing portal URL.');
-    }
-    return Uri.parse(url);
-  }
-
   Future<StripePayoutStatus> fetchStripePayoutStatus() async {
     final owner = _requireOwner();
     if (!_usesSupabase) return const StripePayoutStatus.notStarted();
@@ -1557,31 +1508,6 @@ class AppRepository extends ChangeNotifier {
         .maybeSingle();
     if (row == null) return const StripePayoutStatus.notStarted();
     return StripePayoutStatus.fromRow(row);
-  }
-
-  Future<SubscriptionStatus> fetchSubscriptionStatus() async {
-    final current = _currentUser;
-    if (current == null) {
-      throw AuthException('You must be logged in to view billing.');
-    }
-    if (!_usesSupabase) {
-      return SubscriptionStatus(
-        status: current.isSubscribed ? 'active' : 'none',
-        isActive: current.isSubscribed,
-      );
-    }
-    final row = await _client
-        .from('subscription_records')
-        .select()
-        .eq('user_id', current.id)
-        .maybeSingle();
-    if (row == null) {
-      return SubscriptionStatus(
-        status: current.isSubscribed ? 'active' : 'none',
-        isActive: current.isSubscribed,
-      );
-    }
-    return SubscriptionStatus.fromRow(row, current.isSubscribed);
   }
 
   Future<void> confirmBookingPayment(String bookingId) async {
@@ -1649,6 +1575,27 @@ class AppRepository extends ChangeNotifier {
       _users[index] = user;
     }
     return user;
+  }
+
+  Future<AppUser> _fetchProfileAfterSignup(
+    String userId,
+    AppUser fallback,
+  ) async {
+    for (var attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        return await _fetchProfile(userId);
+      } catch (_) {
+        if (attempt == 3) break;
+        await Future<void>.delayed(const Duration(milliseconds: 160));
+      }
+    }
+    final index = _users.indexWhere((candidate) => candidate.id == fallback.id);
+    if (index == -1) {
+      _users.add(fallback);
+    } else {
+      _users[index] = fallback;
+    }
+    return fallback;
   }
 
   Future<AppUser?> _fetchProfileByEmail(String email) async {
@@ -1843,58 +1790,5 @@ class StripePayoutStatus {
       default:
         return 'Connect Stripe to receive payouts after guest bookings are paid.';
     }
-  }
-}
-
-class SubscriptionStatus {
-  const SubscriptionStatus({
-    required this.status,
-    required this.isActive,
-    this.currentPeriodEnd,
-  });
-
-  factory SubscriptionStatus.fromRow(
-    Map<String, dynamic> row,
-    bool profileIsSubscribed,
-  ) {
-    final status = row['status']?.toString() ?? 'none';
-    return SubscriptionStatus(
-      status: status,
-      isActive:
-          profileIsSubscribed || status == 'active' || status == 'trialing',
-      currentPeriodEnd: DateTime.tryParse(
-        row['current_period_end']?.toString() ?? '',
-      ),
-    );
-  }
-
-  final String status;
-  final bool isActive;
-  final DateTime? currentPeriodEnd;
-
-  String get label {
-    if (isActive) {
-      return status == 'trialing' ? 'Trial active' : 'Premium active';
-    }
-    switch (status) {
-      case 'past_due':
-        return 'Payment needs attention';
-      case 'canceled':
-        return 'Subscription canceled';
-      case 'incomplete':
-        return 'Checkout not completed';
-      default:
-        return 'Premium inactive';
-    }
-  }
-
-  String get description {
-    if (isActive) {
-      return 'Premium access is active from Stripe subscription status.';
-    }
-    if (status == 'past_due') {
-      return 'Open billing to update payment details or resolve the invoice.';
-    }
-    return 'Start Stripe Checkout to activate premium access.';
   }
 }

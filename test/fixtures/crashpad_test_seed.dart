@@ -37,7 +37,6 @@ class MockCrashpadSeed {
         countryOfBirth: 'USA',
         dateOfBirth: DateTime(1988, 4, 12),
         userType: AppUserType.owner,
-        isSubscribed: true,
       ),
       AppUser(
         id: uuid.v4(),
@@ -50,7 +49,6 @@ class MockCrashpadSeed {
         userType: AppUserType.employee,
         company: 'SkyFusion Airways',
         badgeNumber: 'SF-8821',
-        isSubscribed: true,
       ),
     ];
   }

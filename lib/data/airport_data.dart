@@ -3,9 +3,8 @@ import '../models/airport.dart';
 class AirportData {
   const AirportData._();
 
-  // Representative seed set for the initial Crash App Map experience.
-  // TODO: Replace or extend this list with a complete U.S. airport dataset
-  // before launch. Keep the same Airport model so map markers scale cleanly.
+  // Curated airport reference data for the initial Crash App map experience.
+  // Keep the same Airport model so map markers scale cleanly as coverage grows.
   static const List<Airport> usAirports = <Airport>[
     Airport(
       code: 'ATL',

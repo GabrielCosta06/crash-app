@@ -38,12 +38,6 @@ class LaunchChecklistScreen extends StatelessWidget {
       icon: Icons.credit_card_outlined,
     ),
     _LaunchItem(
-      title: 'Premium subscription checked',
-      detail:
-          'Start Stripe Billing Checkout and verify premium access changes after the webhook.',
-      icon: Icons.workspace_premium_outlined,
-    ),
-    _LaunchItem(
       title: 'Checkout fee flow tested',
       detail:
           'Check in the guest, assess a fee, pay it through Stripe Checkout, and confirm completion.',
@@ -96,7 +90,7 @@ class LaunchChecklistScreen extends StatelessWidget {
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Text(
-                          'Use Stripe test-mode cards and refresh account status after redirects. Webhooks are the source of truth for payment, subscription, and payout readiness.',
+                          'Use Stripe test-mode cards and refresh account status after redirects. Webhooks are the source of truth for payment and payout readiness.',
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall

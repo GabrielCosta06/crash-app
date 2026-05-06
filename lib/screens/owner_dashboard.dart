@@ -1653,7 +1653,7 @@ class _WorkflowPanel extends StatelessWidget {
               icon: Icons.fact_check_outlined,
               title: 'Launch checklist',
               description:
-                  'Walk through first-user QA for listings, Stripe, subscriptions, and checkout fees.',
+                  'Walk through first-user QA for listings, Stripe payouts, booking payments, and checkout fees.',
               onTap: onLaunchChecklist,
             ),
           ],

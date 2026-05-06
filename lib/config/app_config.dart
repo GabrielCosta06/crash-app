@@ -24,9 +24,6 @@ class AppConfig {
   static const String stripeBookingCheckoutFunction = 'create-booking-checkout';
   static const String stripeCheckoutChargeFunction =
       'create-checkout-charge-session';
-  static const String stripeSubscriptionCheckoutFunction =
-      'create-subscription-checkout';
-  static const String stripeBillingPortalFunction = 'create-billing-portal';
 
   /// Crash App currently monetizes through a transaction fee.
   ///

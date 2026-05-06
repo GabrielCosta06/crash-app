@@ -18,7 +18,7 @@ The following 15 improvements have been implemented to enhance the user experien
 6.  **Information Hierarchy Rework**: Reordered the details page to prioritize trust signals and property descriptions over technical room breakdowns.
 7.  **Trust & Verification Layer**: Added a dedicated "Trust and Verification" section on the details page, including owner response times and security features.
 8.  **Owner-Approval Checkout**: Guests request a stay first; owners approve it; then Stripe Checkout opens from booking history.
-9.  **Stripe Test-Mode Payments**: Booking payments, owner payouts, checkout charges, and subscriptions are routed through Supabase Edge Functions backed by Stripe test-mode keys.
+9.  **Stripe Test-Mode Payments**: Booking payments, owner payouts, checkout charges, and Crash App platform fees are routed through Supabase Edge Functions backed by Stripe test-mode keys.
 10. **Scannable Dashboard Metrics**: Improved the owner dashboard with better spacing and clearer metric cards for properties and earnings.
 11. **Skeleton Loaders**: Implemented custom skeleton loaders for the owner dashboard to improve perceived performance during data fetching.
 12. **Contextual Empty States**: Replaced generic "No data" messages with actionable empty states that guide users on how to proceed (e.g., "Add your first crashpad").

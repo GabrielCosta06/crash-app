@@ -9,11 +9,5 @@ verify_jwt = true
 [functions.create-checkout-charge-session]
 verify_jwt = true
 
-[functions.create-subscription-checkout]
-verify_jwt = true
-
-[functions.create-billing-portal]
-verify_jwt = true
-
 [functions.stripe-webhook]
 verify_jwt = false

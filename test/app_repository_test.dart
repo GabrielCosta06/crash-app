@@ -32,7 +32,7 @@ void main() {
       nearestAirport: 'DEN',
       bedType: CrashpadBedModel.flexible.label,
       price: 120,
-      imageUrls: const <String>[],
+      imageUrls: const <String>['ZmFrZS1saXN0aW5nLXBob3Rv'],
       rooms: const <CrashpadRoom>[
         CrashpadRoom(
           id: 'cold-room',
@@ -98,6 +98,36 @@ void main() {
     expect(created.checkoutCharges.single.amount, 35);
     expect(created.minimumStayNights, 4);
     expect(created.distanceToAirportMiles, 6.5);
+  });
+
+  test('owner-created crashpad requires a real listing photo', () async {
+    final repository = seededRepository();
+
+    await repository.logIn('owner@crashpads.com', 'owner123');
+    await expectLater(
+      repository.addCrashpad(
+        name: 'No Photo Crashpad',
+        description: 'Listing should not publish without owner photos.',
+        location: '100 Test Way, Denver, CO, USA',
+        nearestAirport: 'DEN',
+        bedType: CrashpadBedModel.hot.label,
+        price: 120,
+        imageUrls: const <String>[],
+        rooms: const <CrashpadRoom>[
+          CrashpadRoom(
+            id: 'hot-room',
+            name: 'Hot Room',
+            bedModel: CrashpadBedModel.hot,
+            beds: <CrashpadBed>[CrashpadBed(id: 'h1', label: 'Bed 1')],
+            activeGuests: 0,
+            hotCapacity: 1,
+          ),
+        ],
+        amenities: const <String>['Wi-Fi'],
+        houseRules: const <String>['Quiet hours'],
+      ),
+      throwsA(isA<ArgumentError>()),
+    );
   });
 
   test('guest booking is visible to owner and can move through stay workflow',
@@ -819,25 +849,21 @@ void main() {
     expect(repository.bookings.single.status, BookingStatus.cancelled);
   });
 
-  test('test-seeded subscription and messaging workflows update state',
-      () async {
+  test('test-seeded messaging workflows update state', () async {
     final repository = seededRepository();
     final crashpad = repository.crashpads.first;
 
     await repository.signUp(
-      email: 'subscription.crew@example.com',
+      email: 'message.crew@example.com',
       password: 'crew456',
-      firstName: 'Sub',
+      firstName: 'Message',
       lastName: 'Crew',
       countryOfBirth: 'USA',
       dateOfBirth: DateTime(1993, 1, 1),
       userType: AppUserType.employee,
       company: 'Test Air',
-      badgeNumber: 'SUB-1',
+      badgeNumber: 'MSG-1',
     );
-    expect(repository.currentUser!.isSubscribed, isFalse);
-    await repository.subscribeCurrentUser();
-    expect(repository.currentUser!.isSubscribed, isTrue);
 
     final thread = await repository.startMessageThread(
       crashpadId: crashpad.id,

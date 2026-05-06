@@ -832,7 +832,7 @@ class _AccountStatusSection extends StatelessWidget {
         children: <Widget>[
           const SectionHeading(
             title: 'Account status',
-            subtitle: 'Access, subscription, and platform readiness.',
+            subtitle: 'Role, authentication, and payment readiness.',
           ),
           const SizedBox(height: AppSpacing.lg),
           _ProfileInfoRow(
@@ -842,11 +842,6 @@ class _AccountStatusSection extends StatelessWidget {
                 ? 'Owner: management tools enabled'
                 : 'Guest: booking and review tools enabled',
           ),
-          _ProfileInfoRow(
-            icon: Icons.workspace_premium_outlined,
-            label: 'Subscription',
-            value: user.isSubscribed ? 'Premium active' : 'Free account',
-          ),
           const _ProfileInfoRow(
             icon: Icons.lock_outline,
             label: 'Authentication',
@@ -855,7 +850,8 @@ class _AccountStatusSection extends StatelessWidget {
           const _ProfileInfoRow(
             icon: Icons.payments_outlined,
             label: 'Payments',
-            value: 'Stripe test-mode Checkout handles booking payments.',
+            value:
+                'Stripe Checkout routes guest payments to owners and keeps the Crash App fee.',
           ),
         ],
       ),

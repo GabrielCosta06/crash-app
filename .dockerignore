@@ -33,6 +33,7 @@
 **\.pub-cache
 **\.pub
 build
+supabase\.temp
 
 # Symbolication related
 **\app.*.symbols

@@ -68,66 +68,6 @@ Deno.serve(async (req) => {
           .eq("stripe_checkout_session_id", String(session.id));
       }
 
-      if (purpose === "premium_subscription") {
-        const userId = String(
-          (session.metadata as Record<string, unknown> | undefined)?.user_id ??
-            session.client_reference_id ?? "",
-        );
-        const customerId = String(session.customer ?? "");
-        const subscriptionId = session.subscription
-          ? String(session.subscription)
-          : null;
-        if (userId && customerId) {
-          await admin.from("subscription_records").upsert({
-            user_id: userId,
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subscriptionId,
-            status: "active",
-          });
-          await admin
-            .from("profiles")
-            .update({ is_subscribed: true })
-            .eq("id", userId);
-        }
-      }
-    }
-
-    if (
-      event.type === "customer.subscription.created" ||
-      event.type === "customer.subscription.updated" ||
-      event.type === "customer.subscription.deleted"
-    ) {
-      const subscription = (event.data as Record<string, unknown>).object as Record<string, unknown>;
-      const customerId = String(subscription.customer ?? "");
-      const subscriptionId = String(subscription.id ?? "");
-      const status = String(subscription.status ?? "incomplete");
-      const currentPeriodEnd = Number(subscription.current_period_end ?? 0);
-      const active = status === "active" || status === "trialing";
-      const { data: record } = await admin
-        .from("subscription_records")
-        .select("user_id")
-        .eq("stripe_customer_id", customerId)
-        .maybeSingle();
-      const userId = String(
-        record?.user_id ??
-          (subscription.metadata as Record<string, unknown> | undefined)?.user_id ??
-          "",
-      );
-      if (userId && customerId) {
-        await admin.from("subscription_records").upsert({
-          user_id: userId,
-          stripe_customer_id: customerId,
-          stripe_subscription_id: subscriptionId,
-          status,
-          current_period_end: currentPeriodEnd > 0
-            ? new Date(currentPeriodEnd * 1000).toISOString()
-            : null,
-        });
-        await admin
-          .from("profiles")
-          .update({ is_subscribed: active })
-          .eq("id", userId);
-      }
     }
 
     if (event.type === "account.updated" || event.type === "v2.core.account.updated") {

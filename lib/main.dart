@@ -20,7 +20,6 @@ import 'screens/login_screen.dart';
 import 'screens/owner_dashboard.dart';
 import 'screens/owner_details_screen.dart';
 import 'screens/signup_screen.dart';
-import 'screens/subscription_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_components.dart';
 
@@ -188,9 +187,6 @@ class _MyAppState extends State<MyApp> {
                   routeLabel: 'Find a crashpad',
                   routeName: '/home',
                 );
-        break;
-      case '/subscribe':
-        builder = (context) => const SubscriptionScreen();
         break;
       default:
         builder = (context) => LoginScreen(

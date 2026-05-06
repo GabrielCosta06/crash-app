@@ -11,9 +11,7 @@ inviting the first owners or crew users.
 4. Create a guest account and request a stay from the live listing.
 5. Approve the request as the owner, pay through Stripe Checkout as the guest,
    and confirm the webhook moves the booking to confirmed.
-6. Start Stripe Billing Checkout and confirm premium access is active after the
-   webhook.
-7. Check in the guest, assess a checkout fee, pay it through Stripe Checkout,
+6. Check in the guest, assess a checkout fee, pay it through Stripe Checkout,
    and confirm the booking completes after the webhook.
-8. Use the in-app Refresh status buttons after Stripe redirects if webhook
+7. Use the in-app Refresh status buttons after Stripe redirects if webhook
    updates are not visible immediately.
